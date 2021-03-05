@@ -10,6 +10,9 @@ func ApplyCmd() *cobra.Command {
 		Short: "Applies migrations",
 	}
 
+	cmd.PersistentFlags().StringP("dsn", "d", "", "the dsn of the database")
+	cmd.MarkPersistentFlagRequired("dsn")
+
 	cmd.AddCommand(
 		UpApplyCmd(),
 		DownApplyCmd(),
