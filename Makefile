@@ -6,3 +6,10 @@ test:
 
 update-dependencies:
 	go get -u ./...
+
+vendor:
+	go mod vendor
+	go mod tidy
+
+check:
+	go fmt ./...
