@@ -1,14 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/go-morph/morph"
 
 	"github.com/go-morph/morph/commands"
 )
 
 func main() {
 	if err := commands.RootCmd().Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
+		morph.ErrorLogger.Fprintf(os.Stderr, "An Error Occurred\n")
+		_, _ = morph.ErrorLoggerLight.Fprintf(os.Stderr, "--> %v\n", err)
 	}
 }
