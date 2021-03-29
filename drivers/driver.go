@@ -2,7 +2,6 @@ package drivers
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/go-morph/morph/models"
 	"log"
 	"net/url"
@@ -27,14 +26,14 @@ type Driver interface {
 func Connect(connectionURL string) (Driver, error) {
 	uri, err := url.Parse(connectionURL)
 	if err != nil {
-		return nil, errors.Wrap(err, "unsupported scheme found: ")
+		return nil, fmt.Errorf("unsupported driver scheme found: %w", err)
 	}
 	driversMu.RLock()
 	driver, ok := registeredDrivers[uri.Scheme]
 	driversMu.RUnlock()
 
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("unsupported driver %s found", uri.Scheme))
+		return nil, fmt.Errorf("unsupported driver %s found: %w", uri.Scheme, err)
 	}
 
 	connectedDriver, err := driver.Open(connectionURL)
