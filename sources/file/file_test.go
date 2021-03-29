@@ -19,7 +19,7 @@ func TestFile(t *testing.T) {
 		require.Contains(t, migration.FileName, fmt.Sprintf("migration_%d", i))
 		b, err := ioutil.ReadAll(migration.Bytes)
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("migration%d\n", i), string(b))
+		require.Contains(t, string(b), fmt.Sprintf("migration%d", i))
 	}
 
 	t.Run("should correctly create a source with the testfiles", func(t *testing.T) {
