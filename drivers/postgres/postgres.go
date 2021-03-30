@@ -138,6 +138,14 @@ func (pg *postgres) Ping() error {
 }
 
 func (pg *postgres) CreateSchemaTableIfNotExists() (err error) {
+	if pg.conn == nil {
+		return &drivers.AppError{
+			OrigErr: errors.New("driver has no connection established"),
+			Message: "database connection is missing",
+			Driver:  driverName,
+		}
+	}
+
 	if err = pg.Lock(); err != nil {
 		return err
 	}
@@ -186,23 +194,27 @@ func (pg *postgres) CreateSchemaTableIfNotExists() (err error) {
 }
 
 func (pg *postgres) Close() error {
-	if err := pg.conn.Close(); err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to close database connection",
-			Command: "pg_conn_close",
-			Query:   nil,
+	if pg.conn != nil {
+		if err := pg.conn.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database connection",
+				Command: "pg_conn_close",
+				Query:   nil,
+			}
 		}
 	}
 
-	if err := pg.db.Close(); err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to close database connection",
-			Command: "pg_conn_close",
-			Query:   nil,
+	if pg.db != nil {
+		if err := pg.db.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database connection",
+				Command: "pg_conn_close",
+				Query:   nil,
+			}
 		}
 	}
 
@@ -210,7 +222,7 @@ func (pg *postgres) Close() error {
 }
 
 func (pg *postgres) Lock() error {
-	aid, err := drivers.GenerateAdvisoryLockId(pg.config.DatabaseName, pg.config.SchemaName)
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.DatabaseName, pg.config.SchemaName)
 	if err != nil {
 		return err
 	}
@@ -234,7 +246,7 @@ func (pg *postgres) Lock() error {
 }
 
 func (pg *postgres) Unlock() error {
-	aid, err := drivers.GenerateAdvisoryLockId(pg.config.DatabaseName, pg.config.SchemaName)
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.DatabaseName, pg.config.SchemaName)
 	if err != nil {
 		return err
 	}
