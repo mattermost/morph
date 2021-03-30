@@ -6,5 +6,6 @@ var (
 	ErrorLogger      = color.New(color.FgRed, color.Bold)
 	ErrorLoggerLight = color.New(color.FgRed)
 	InfoLogger       = color.New(color.FgCyan, color.Bold)
+	InfoLoggerLight  = color.New(color.FgCyan)
 	SuccessLogger    = color.New(color.FgGreen, color.Bold)
 )

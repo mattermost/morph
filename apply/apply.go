@@ -6,18 +6,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func Migrate(dsn string, source string) error {
-	src, err := sources.Open(source)
+func Migrate(dsn, source, driverName, path string) error {
+	src, err := sources.Open(source, path)
 	if err != nil {
 		return err
 	}
 	defer src.Close()
 
-	if _, err := morph.NewFromConnURL(dsn, src); err != nil {
+	engine, err := morph.NewFromConnURL(dsn, src, driverName)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return engine.ApplyAll()
 }
 
 func Up(arge cobra.PositionalArgs) error {

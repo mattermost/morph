@@ -1,6 +1,8 @@
 package drivers
 
 import (
+	"fmt"
+	"hash/crc32"
 	"net/url"
 )
 
@@ -33,4 +35,13 @@ func SanitizeConnURL(conn string, params []string) (string, error) {
 	uri.RawQuery = query.Encode()
 
 	return uri.String(), nil
+}
+
+const advisoryLockIDSalt uint = 1486364155
+
+func GenerateAdvisoryLockId(databaseName, schemaName string) (string, error) {
+	databaseName = schemaName + databaseName + "\x00"
+	sum := crc32.ChecksumIEEE([]byte(databaseName))
+	sum = sum * uint32(advisoryLockIDSalt)
+	return fmt.Sprint(sum), nil
 }

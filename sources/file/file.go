@@ -79,7 +79,7 @@ func (f *File) readMigrations() error {
 			return err
 		}
 
-		m := &models.Migration{Bytes: file, FileName: path}
+		m := &models.Migration{Bytes: file, Name: path}
 		migrations = append(migrations, m)
 		return nil
 	})
