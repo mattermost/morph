@@ -174,19 +174,18 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 			suite.Require().NoError(err, "should not error when closing the database connection")
 		}()
 
+		_, err = suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))
+		suite.Require().NoError(err, "should not error while dropping pre-existing migrations table")
+
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM pg_catalog.pg_class c
 								JOIN   pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 								WHERE  n.nspname = 'public'
 								AND    c.relname = '%s'
 								AND    c.relkind = 'r';`, defaultConfig.MigrationsTable)
-		var result int
-		err = suite.db.QueryRow(migrationTableExists).Scan(&result)
-		suite.Require().NoError(err, "should not error querying table existence")
-		suite.Require().Equal(0, result, "migrations table should not exist")
-
 		err = driver.CreateSchemaTableIfNotExists()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
+		var result int
 		err = suite.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(1, result, "migrations table should exist")

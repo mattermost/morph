@@ -218,6 +218,8 @@ func (pg *postgres) Close() error {
 		}
 	}
 
+	pg.db = nil
+	pg.conn = nil
 	return nil
 }
 
