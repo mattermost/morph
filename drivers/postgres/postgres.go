@@ -3,11 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/models"
@@ -270,8 +270,59 @@ func (pg *postgres) Unlock() error {
 	return nil
 }
 
-func (pg *postgres) Apply(migration *models.Migration) error {
-	panic("implement me")
+func (pg *postgres) Apply(migration *models.Migration) (err error) {
+	if err = pg.Lock(); err != nil {
+		return err
+	}
+	defer func() {
+		// If we saw no error prior to unlocking and unlocking returns an error we need to
+		// assign the unlocking error to err
+		if unlockErr := pg.Unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	query, readErr := migration.Query()
+	if readErr != nil {
+		return &drivers.AppError{
+			OrigErr: readErr,
+			Driver:  driverName,
+			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	transaction, err := pg.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while opening a transaction to the database",
+			Command: "begin_transaction",
+		}
+	}
+
+	if err = executeQuery(transaction, query); err != nil {
+		return err
+	}
+
+	if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
+		return err
+	}
+
+	err = transaction.Commit()
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while committing a transaction to the database",
+			Command: "commit_transaction",
+		}
+	}
+
+	return nil
 }
 
 func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err error) {
@@ -323,6 +374,31 @@ func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err err
 	return appliedMigrations, nil
 }
 
-func (pg *postgres) Logger() log.Logger {
-	panic("implement me")
+func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
+	return fmt.Sprintf("INSERT INTO %s (version, name) VALUES (%d, '%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
+}
+
+func executeQuery(transaction *sql.Tx, query string) error {
+	if _, err := transaction.Exec(query); err != nil {
+		if txErr := transaction.Rollback(); txErr != nil {
+			err = errors.Wrap(err, "failed to execute query in migration transaction")
+			err = errors.Wrap(txErr, "failed to rollback migration transaction")
+
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Command: "rollback_transaction",
+			}
+		}
+
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to execute migration",
+			Command: "executing_query",
+			Query:   []byte(query),
+		}
+	}
+
+	return nil
 }

@@ -2,7 +2,6 @@ package drivers
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/go-morph/morph/models"
@@ -20,7 +19,6 @@ type Driver interface {
 	Unlock() error
 	Apply(migration *models.Migration) error
 	AppliedMigrations() ([]*models.Migration, error)
-	Logger() log.Logger
 }
 
 func Connect(connectionURL, driverName string) (Driver, error) {

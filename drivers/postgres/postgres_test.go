@@ -3,7 +3,13 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
+	"strings"
 	"testing"
+
+	"github.com/pkg/errors"
+
+	"github.com/go-morph/morph/models"
 
 	"github.com/go-morph/morph/drivers"
 
@@ -23,7 +29,7 @@ type PostgresTestSuite struct {
 	driver drivers.Driver
 }
 
-func (suite *PostgresTestSuite) SetupSuite() {
+func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
 	db, err := sql.Open(driverName, adminConnURL)
 	suite.Require().NoError(err, "should not error when connecting as admin to the database")
 	defer func() {
@@ -41,7 +47,7 @@ func (suite *PostgresTestSuite) SetupSuite() {
 	suite.Require().NoError(err, "should not error when connecting to the test database")
 }
 
-func (suite *PostgresTestSuite) TearDownSuite() {
+func (suite *PostgresTestSuite) AfterTest(_, _ string) {
 	if suite.db != nil {
 		err := suite.db.Close()
 		suite.Require().NoError(err, "should not error when closing the test database connection")
@@ -77,7 +83,7 @@ func (suite *PostgresTestSuite) TestOpen() {
 
 		_, err = driver.Open("something invalid")
 		suite.Assert().Error(err, "should error when connecting to database from url")
-		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something%20invalid\" in connection info string\", query: ")
+		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something%20invalid\" in connection info string\", query: \n\n\n")
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
@@ -298,6 +304,143 @@ func (suite *PostgresTestSuite) TestAppliedMigrations() {
 	appliedMigrations, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when fetching applied migrations")
 	suite.Assert().Len(appliedMigrations, 3)
+}
+
+func (suite *PostgresTestSuite) TestApply() {
+	testData := []map[string]interface{}{
+		{
+			"scenario": "with no applied migrations and single statement, it applies migration",
+			"pendingMigrations": []*models.Migration{
+				{
+					Version: 1,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Name:    "migration_1.sql",
+				},
+			},
+			"appliedMigrations":         []*models.Migration{},
+			"expectedAppliedMigrations": 1,
+			"errors":                    []error{nil},
+		},
+		{
+			"scenario": "with no applied migrations and multiple statements, it applies migration",
+			"pendingMigrations": []*models.Migration{
+				{
+					Version: 1,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
+					Name:    "migration_1.sql",
+				},
+			},
+			"appliedMigrations":         []*models.Migration{},
+			"expectedAppliedMigrations": 1,
+			"errors":                    []error{nil},
+		},
+		{
+			"scenario": "with applied migrations and single statement, it applies migration",
+			"pendingMigrations": []*models.Migration{
+				{
+					Version: 2,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Name:    "migration_2.sql",
+				},
+			},
+			"appliedMigrations": []*models.Migration{
+				{
+					Version: 1,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Name:    "migration_1.sql",
+				},
+			},
+			"expectedAppliedMigrations": 2,
+			"errors":                    []error{nil, nil},
+		},
+		{
+			"scenario": "when migration fails, it rollback the migration",
+			"pendingMigrations": []*models.Migration{
+				{
+					Version: 1,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Name:    "migration_1.sql",
+				},
+			},
+			"appliedMigrations":         []*models.Migration{},
+			"expectedAppliedMigrations": 0,
+			"errors": []error{
+				errors.New("driver: postgres, message: failed to execute migration, command: executing_query, originalError: pq: relation \"foobar\" does not exist, query: \n\nselect * from foobar;\n"),
+			},
+		},
+		{
+			"scenario": "when future migration fails, it rollback only the failed migration",
+			"pendingMigrations": []*models.Migration{
+				{
+					Version: 1,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Name:    "migration_1.sql",
+				},
+				{
+					Version: 2,
+					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Name:    "migration_2.sql",
+				},
+			},
+			"appliedMigrations":         []*models.Migration{},
+			"expectedAppliedMigrations": 1,
+			"errors": []error{
+				nil,
+				errors.New("driver: postgres, message: failed to execute migration, command: executing_query, originalError: pq: relation \"foobar\" does not exist, query: \n\nselect * from foobar;\n"),
+			},
+		},
+	}
+
+	for _, elem := range testData {
+		suite.T().Run(elem["scenario"].(string), func(t *testing.T) {
+			appliedMigrations := elem["appliedMigrations"].([]*models.Migration)
+			pendingMigrations := elem["pendingMigrations"].([]*models.Migration)
+			expectedAppliedMigrations := elem["expectedAppliedMigrations"].(int)
+			expectedErrors := elem["errors"].([]error)
+
+			driver, err := drivers.GetDriver(driverName)
+			suite.Require().NoError(err, "fetching already registered driver should not fail")
+
+			connectedDriver, err := driver.Open(testConnURL)
+			suite.Assert().NoError(err, "should not error when connecting to database from url")
+			defer func() {
+				err = driver.Close()
+				suite.Require().NoError(err, "should not error when closing the database connection")
+			}()
+
+			err = connectedDriver.CreateSchemaTableIfNotExists()
+			suite.Require().NoError(err, "should not error when creating migrations table")
+			defer func() {
+				_, err = suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))
+				suite.Require().NoError(err, "should not error while dropping migrations table")
+			}()
+
+			for _, appliedMigration := range appliedMigrations {
+				insertMigrationsQuery := fmt.Sprintf(`
+					INSERT INTO %s(version, name)
+					VALUES 
+		       			(%d, '%s');
+				`, defaultConfig.MigrationsTable, appliedMigration.Version, appliedMigration.Name)
+				_, err = suite.db.Exec(insertMigrationsQuery)
+				suite.Require().NoError(err, "should not error when inserting seed migrations")
+			}
+
+			for i, pendingMigration := range pendingMigrations {
+				err = connectedDriver.Apply(pendingMigration)
+				if expectedErrors[i] != nil {
+					suite.Assert().EqualErrorf(err, expectedErrors[i].Error(), "")
+				} else {
+					suite.Require().NoError(err, "should not error applying migration")
+				}
+			}
+
+			var migrations int
+			err = suite.db.QueryRow(fmt.Sprintf("select count(*) from %s;", defaultConfig.MigrationsTable)).Scan(&migrations)
+			suite.Require().NoError(err, "should not error counting applied migrations")
+
+			suite.Assert().Equal(expectedAppliedMigrations, migrations)
+		})
+	}
 }
 
 func TestPostgresSuite(t *testing.T) {
