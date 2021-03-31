@@ -18,3 +18,7 @@ func (m *Migration) Query() (string, error) {
 	}
 	return buf.String(), nil
 }
+
+func (m *Migration) Close() error {
+	return m.Bytes.Close()
+}

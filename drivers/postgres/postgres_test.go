@@ -154,8 +154,8 @@ func (suite *PostgresTestSuite) TestOpen() {
 		}()
 
 		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().Equal(databaseName, pgDriver.config.DatabaseName)
-		suite.Assert().Equal("public", pgDriver.config.SchemaName)
+		suite.Assert().Equal(databaseName, pgDriver.config.databaseName)
+		suite.Assert().Equal("public", pgDriver.config.schemaName)
 	})
 }
 
@@ -441,6 +441,27 @@ func (suite *PostgresTestSuite) TestApply() {
 			suite.Assert().Equal(expectedAppliedMigrations, migrations)
 		})
 	}
+}
+
+func (suite *PostgresTestSuite) TestWithInstance() {
+	db, err := sql.Open(driverName, testConnURL)
+	suite.Require().NoError(err, "should not error when connecting to the test database")
+	defer func() {
+		err = db.Close()
+		suite.Require().NoError(err, "should not error when closing the database connection")
+	}()
+	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
+
+	config := &Config{}
+	driver, err := WithInstance(db, config)
+	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
+	defer func() {
+		err = driver.Close()
+		suite.Require().NoError(err, "should not error when closing the database connection")
+	}()
+
+	suite.Assert().Equal(databaseName, config.databaseName)
+	suite.Assert().Equal("public", config.schemaName)
 }
 
 func TestPostgresSuite(t *testing.T) {

@@ -39,10 +39,6 @@ func Connect(connectionURL, driverName string) (Driver, error) {
 		return nil, err
 	}
 
-	if err := connectedDriver.Ping(); err != nil {
-		return nil, err
-	}
-
 	return connectedDriver, nil
 }
 

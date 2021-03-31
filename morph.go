@@ -60,6 +60,10 @@ func NewFromConnURL(connectionURL string, source sources.Source, driverName stri
 		return nil, err
 	}
 
+	if err := driver.Ping(); err != nil {
+		return nil, err
+	}
+
 	return NewWithDriverAndSource(driver, source, options...)
 }
 
@@ -73,6 +77,10 @@ func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, option
 
 	for _, option := range options {
 		option(engine)
+	}
+
+	if err := driver.Ping(); err != nil {
+		return nil, err
 	}
 
 	if err := engine.driver.CreateSchemaTableIfNotExists(); err != nil {

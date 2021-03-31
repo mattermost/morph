@@ -35,16 +35,39 @@ func init() {
 
 type Config struct {
 	MigrationsTable        string
-	DatabaseName           string
-	SchemaName             string
 	StatementTimeoutInSecs int
 	MigrationMaxSize       int
+	databaseName           string
+	schemaName             string
 }
 
 type postgres struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *Config
+}
+
+func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
+	driverConfig := mergeConfigs(config, defaultConfig)
+
+	conn, err := dbInstance.Conn(context.Background())
+	if err != nil {
+		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
+	}
+
+	if driverConfig.databaseName, err = currentDatabaseNameFromDB(conn, driverConfig); err != nil {
+		return nil, err
+	}
+
+	if driverConfig.schemaName, err = currentSchema(conn, driverConfig); err != nil {
+		return nil, err
+	}
+
+	return &postgres{
+		conn:   conn,
+		db:     dbInstance,
+		config: driverConfig,
+	}, nil
 }
 
 func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
@@ -73,11 +96,11 @@ func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	if driverConfig.DatabaseName, err = extractDatabaseName(connURL); err != nil {
+	if driverConfig.databaseName, err = extractDatabaseNameFromURL(connURL); err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
 	}
 
-	if driverConfig.SchemaName, err = currentSchema(conn, driverConfig); err != nil {
+	if driverConfig.schemaName, err = currentSchema(conn, driverConfig); err != nil {
 		return nil, err
 	}
 
@@ -128,6 +151,22 @@ func mergeConfigWithParams(params map[string]string, config *Config) (*Config, e
 	}
 
 	return config, nil
+}
+
+func mergeConfigs(config, defaultConfig *Config) *Config {
+	if config.MigrationsTable == "" {
+		config.MigrationsTable = defaultConfig.MigrationsTable
+	}
+
+	if config.StatementTimeoutInSecs == 0 {
+		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
+	}
+
+	if config.MigrationMaxSize == 0 {
+		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
+	}
+
+	return config
 }
 
 func (pg *postgres) Ping() error {
@@ -224,7 +263,7 @@ func (pg *postgres) Close() error {
 }
 
 func (pg *postgres) Lock() error {
-	aid, err := drivers.GenerateAdvisoryLockID(pg.config.DatabaseName, pg.config.SchemaName)
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.databaseName, pg.config.schemaName)
 	if err != nil {
 		return err
 	}
@@ -248,7 +287,7 @@ func (pg *postgres) Lock() error {
 }
 
 func (pg *postgres) Unlock() error {
-	aid, err := drivers.GenerateAdvisoryLockID(pg.config.DatabaseName, pg.config.SchemaName)
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.databaseName, pg.config.schemaName)
 	if err != nil {
 		return err
 	}
@@ -290,6 +329,7 @@ func (pg *postgres) Apply(migration *models.Migration) (err error) {
 			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
 		}
 	}
+	defer migration.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
@@ -401,4 +441,23 @@ func executeQuery(transaction *sql.Tx, query string) error {
 	}
 
 	return nil
+}
+
+func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
+	query := "SELECT CURRENT_DATABASE()"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	var databaseName string
+	if err := conn.QueryRowContext(ctx, query).Scan(&databaseName); err != nil {
+		return "", &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to fetch database name",
+			Command: "current_database",
+			Query:   []byte(query),
+		}
+	}
+	return databaseName, nil
 }
