@@ -1,3 +1,6 @@
+// +build sources
+// +build !drivers
+
 package file
 
 import (

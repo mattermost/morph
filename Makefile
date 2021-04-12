@@ -4,8 +4,18 @@ all: test
 .PHONY: test
 test:
 	go clean -testcache
-	go test -race -v ./...
+	make test-drivers
+	make test-rest
 
+.PHONY: test-rest
+test-rest:
+	go clean -testcache
+	go test -race -v --tags=!drivers,sources ./...
+
+.PHONY: test-drivers
+test-drivers:
+	go clean -testcache
+	go test -race -v --tags=drivers,!sources ./...
 
 .PHONY: update-dependencies
 update-dependencies:
