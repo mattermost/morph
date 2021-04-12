@@ -80,6 +80,7 @@ func (f *File) readMigrations() error {
 		}
 
 		m := &models.Migration{Bytes: file, FileName: path}
+		fmt.Println("-----> Adding migration "+ path)
 		migrations = append(migrations, m)
 		return nil
 	})
@@ -87,6 +88,7 @@ func (f *File) readMigrations() error {
 		return walkerr
 	}
 
+	fmt.Println(fmt.Sprintf("Migrations added %d\n", len(migrations)))
 	f.migrations = migrations
 	return nil
 }

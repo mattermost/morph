@@ -17,6 +17,7 @@ import (
 
 func TestFile(t *testing.T) {
 	testFilesDir := "../../testfiles"
+
 	checkMigration := func(t *testing.T, migrations []*models.Migration, i int) {
 		migration := migrations[i-1]
 		require.Contains(t, migration.FileName, fmt.Sprintf("migration_%d", i))
@@ -50,6 +51,7 @@ func TestFile(t *testing.T) {
 		for _, info := range infos {
 			b, err := ioutil.ReadFile(filepath.Join(testFilesDir, info.Name()))
 			require.NoError(t, err)
+			fmt.Println("-----> " + info.Name())
 			require.NoError(t, ioutil.WriteFile(filepath.Join(tmpdir, info.Name()), b, 0644))
 		}
 
