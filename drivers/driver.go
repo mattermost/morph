@@ -54,7 +54,7 @@ func GetDriver(driverName string) (Driver, error) {
 
 	driver, ok := registeredDrivers[driverName]
 	if !ok {
-		return nil, fmt.Errorf("driver %s not found", driverName)
+		return nil, fmt.Errorf("driver %q not found", driverName)
 	}
 
 	return driver, nil
