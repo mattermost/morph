@@ -16,7 +16,7 @@ jobs:
         os: [ubuntu-latest]
 
     services:
-      mysql:
+      postgres:
         image: postgres
         env:
           POSTGRES_PASSWORD: morph

@@ -196,36 +196,17 @@ func (pg *postgres) CreateSchemaTableIfNotExists() (err error) {
 		}
 	}()
 
-	var count int
-	userHasCreatePermissionsQuery := fmt.Sprintf("SELECT COUNT(1) FROM information_schema.tables WHERE table_name = '%s' AND table_schema = (SELECT current_schema()) LIMIT 1", pg.config.MigrationsTable)
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
 
-	row := pg.conn.QueryRowContext(ctx, userHasCreatePermissionsQuery)
-	if err = row.Scan(&count); err != nil {
+	createTableIfNotExistsQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (version bigint not null primary key, name varchar not null)", pg.config.MigrationsTable)
+	if _, err = pg.conn.ExecContext(ctx, createTableIfNotExistsQuery); err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
 			Message: "failed while executing query",
-			Command: "check_if_migrations_table_exists",
-			Query:   []byte(userHasCreatePermissionsQuery),
-		}
-	}
-
-	if count == 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
-		defer cancel()
-
-		createTableIfNotExistsQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (version bigint not null primary key, name varchar not null)", pg.config.MigrationsTable)
-		if _, err = pg.conn.ExecContext(ctx, createTableIfNotExistsQuery); err != nil {
-			return &drivers.DatabaseError{
-				OrigErr: err,
-				Driver:  driverName,
-				Message: "failed while executing query",
-				Command: "create_migrations_table_if_not_exists",
-				Query:   []byte(createTableIfNotExistsQuery),
-			}
+			Command: "create_migrations_table_if_not_exists",
+			Query:   []byte(createTableIfNotExistsQuery),
 		}
 	}
 
