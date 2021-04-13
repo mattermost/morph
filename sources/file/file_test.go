@@ -1,9 +1,11 @@
+// +build sources
+// +build !drivers
+
 package file
 
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 
 func TestFile(t *testing.T) {
 	testFilesDir := "../../testfiles"
+
 	checkMigration := func(t *testing.T, migrations []*models.Migration, i int) {
 		migration := migrations[i-1]
 		require.Contains(t, migration.Name, fmt.Sprintf("migration_%d", i))
@@ -36,22 +39,10 @@ func TestFile(t *testing.T) {
 	})
 
 	t.Run("should work correctly as well if the path is absolute", func(t *testing.T) {
-		// copy testfiles to a temporal directory
-		tmpdir, err := ioutil.TempDir("", "morph-")
-		require.NoError(t, err)
-		defer os.RemoveAll(tmpdir)
-
-		infos, err := ioutil.ReadDir(testFilesDir)
+		absTestFilesDir, err := filepath.Abs(testFilesDir)
 		require.NoError(t, err)
 
-		for _, info := range infos {
-			b, err := ioutil.ReadFile(filepath.Join(testFilesDir, info.Name()))
-			require.NoError(t, err)
-			require.NoError(t, ioutil.WriteFile(filepath.Join(tmpdir, info.Name()), b, 0644))
-		}
-
-		// create source and check assertions
-		f, err := (&File{}).Open(tmpdir)
+		f, err := (&File{}).Open(absTestFilesDir)
 		require.NoError(t, err)
 
 		migrations := f.Migrations()

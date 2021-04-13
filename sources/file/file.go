@@ -27,7 +27,10 @@ func (f *File) Open(sourceURL string) (sources.Source, error) {
 	}
 
 	// host might be "." for relative URLs like file://./migrations
-	p := uri.Host + uri.Path
+	p := uri.Opaque
+	if len(p) == 0 {
+		p = uri.Host + uri.Path
+	}
 
 	// if no path provided, default to current directory
 	if len(p) == 0 {
@@ -36,10 +39,8 @@ func (f *File) Open(sourceURL string) (sources.Source, error) {
 			return nil, err
 		}
 		p = wd
-	}
-
-	// make path absolute if required
-	if p[0:1] == "." {
+	} else if p[0:1] != "/" {
+		// make path absolute if required
 		abs, err := filepath.Abs(p)
 		if err != nil {
 			return nil, err

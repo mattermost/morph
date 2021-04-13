@@ -3,13 +3,18 @@ all: test
 .PHONY: test
 test:
 	go clean -testcache
-	go test -race -v ./...
+	make test-drivers
+	make test-rest
 
-.PHONY: update-dependencies
-update-dependencies:
-	go get -u ./...
-	go mod vendor
-	go mod tidy
+.PHONY: test-rest
+test-rest:
+	go clean -testcache
+	go test -race -v --tags=!drivers,sources ./...
+
+.PHONY: test-drivers
+test-drivers:
+	go clean -testcache
+	go test -race -v --tags=drivers,!sources ./...
 
 .PHONY: vendor
 vendor:
