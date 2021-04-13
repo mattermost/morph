@@ -402,8 +402,7 @@ func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
 func executeQuery(transaction *sql.Tx, query string) error {
 	if _, err := transaction.Exec(query); err != nil {
 		if txErr := transaction.Rollback(); txErr != nil {
-			err = errors.Wrap(err, "failed to execute query in migration transaction")
-			err = errors.Wrap(txErr, "failed to rollback migration transaction")
+			err = errors.Wrap(errors.New(err.Error()+txErr.Error()), "failed to execute query in migration transaction")
 
 			return &drivers.DatabaseError{
 				OrigErr: err,
