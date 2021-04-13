@@ -1,7 +1,7 @@
 on: [push, pull_request]
 name: CI
 jobs:
-  test:
+  test-drivers:
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -13,7 +13,6 @@ jobs:
     strategy:
       matrix:
         go-version: [1.15.x, 1.16.x]
-        os: [ubuntu-latest]
 
     services:
       postgres:
@@ -29,7 +28,7 @@ jobs:
         ports:
           - 5432:5432
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
     - name: Install Go
@@ -44,7 +43,32 @@ jobs:
       run: |
         go get -d -t ./...
         make test-drivers
-      if: matrix.os == 'ubuntu-latest'
+
+  test-rest:
+    env:
+      GOPATH: ${{ github.workspace }}
+      GO111MODULE: off
+
+    defaults:
+      run:
+        working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+
+    strategy:
+      matrix:
+        go-version: [1.15.x, 1.16.x]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+    - name: Checkout Code
+      uses: actions/checkout@v2
+      with:
+        path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
     - name: Execute Rest of the Tests
       run: |
         go get -d -t ./...
