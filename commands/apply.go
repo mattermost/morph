@@ -6,16 +6,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var dsn string
-
 func ApplyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Applies migrations",
 	}
 
-	cmd.PersistentFlags().StringVarP(&dsn, "dsn", "d", "", "the dsn of the database")
+	cmd.PersistentFlags().StringP("dsn", "d", "", "the dsn of the database")
 	cmd.MarkPersistentFlagRequired("dsn")
+	cmd.PersistentFlags().StringP("source", "s", "", "the source of the migrations")
+	cmd.MarkPersistentFlagRequired("source")
 
 	cmd.AddCommand(
 		UpApplyCmd(),
@@ -65,8 +65,11 @@ func downApplyCmdF(cmd *cobra.Command, _ []string) error {
 }
 
 func migrateApplyCmdF(cmd *cobra.Command, _ []string) error {
+	dsn, _ := cmd.Flags().GetString("dsn")
+	source, _ := cmd.Flags().GetString("source")
+
 	morph.InfoLogger.Println("Applying all pending migrations...")
-	if err := apply.Migrate(dsn); err != nil {
+	if err := apply.Migrate(dsn, source); err != nil {
 		return err
 	}
 	morph.SuccessLogger.Println("Pending migrations applied.")

@@ -8,6 +8,8 @@ import (
 	"github.com/go-morph/morph/sources"
 
 	_ "github.com/go-morph/morph/drivers/postgres"
+
+	_ "github.com/go-morph/morph/sources/file"
 )
 
 // DefaultLockTimeout sets the max time a database driver has to acquire a lock.
