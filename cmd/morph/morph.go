@@ -15,7 +15,7 @@ func main() {
 	if err := commands.RootCmd().Execute(); err != nil {
 		var databaseErr *drivers.DatabaseError
 		if errors.As(errors.Cause(err), &databaseErr) {
-			morph.ErrorLogger.Fprintf(os.Stderr, "An Error Occurred: This and all later migrations cancelled\n")
+			morph.ErrorLogger.Fprintf(os.Stderr, "An Error Occurred: This and all later migrations have been cancelled\n")
 		} else {
 			morph.ErrorLogger.Fprintf(os.Stderr, "An Error Occurred:\n")
 		}
