@@ -60,10 +60,6 @@ func NewFromConnURL(connectionURL string, source sources.Source, driverName stri
 		return nil, err
 	}
 
-	if err := driver.Ping(); err != nil {
-		return nil, err
-	}
-
 	return NewWithDriverAndSource(driver, source, options...)
 }
 
