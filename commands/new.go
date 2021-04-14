@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-morph/morph"
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ func NewCmd() *cobra.Command {
 
 func NewDriverCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:           "driver",
+		Use:           "driver <name>",
 		Short:         "Generates necessary file structure for a new driver",
 		Args:          cobra.ExactArgs(1),
 		RunE:          newDriverCmdF,
@@ -39,8 +40,9 @@ func NewDriverCmd() *cobra.Command {
 func newDriverCmdF(cmd *cobra.Command, args []string) error {
 	driverName := args[0]
 	morph.InfoLogger.Printf("Generating necessary file structure for %q driver\n", driverName)
+	driverDir := filepath.Join(baseDriverPath, "/", driverName)
 
-	if _, err := os.Stat(baseDriverPath + "/" + driverName); !os.IsNotExist(err) {
+	if _, err := os.Stat(driverDir); !os.IsNotExist(err) {
 		return fmt.Errorf("driver %q already exists, skipping", driverName)
 	}
 
@@ -72,21 +74,18 @@ func generateNewDriver(driverName string) error {
 	)
 
 	f.Line()
-
 	f.Type().Id("Config").Struct(
 		Id("MigrationsTable").String(),
 		Comment("Add more properties here"),
 	)
 
 	f.Line()
-
 	f.Type().Id(driverName).Struct(
 		Id("config").Add(Id("*Config")),
 		Comment("Add more properties here"),
 	)
 
 	f.Line()
-
 	f.Func().Id("WithInstance").Params(Id("dbInstance").Interface(), Id("config").Add(Id("*Config"))).Params(Id("drivers.Driver"), Id("error")).BlockFunc(func(g *Group) {
 		g.Return(Op("&").Id(driverName).Values(Dict{
 			Id("config"): Id("config"),
@@ -147,8 +146,8 @@ func generateNewDriver(driverName string) error {
 		g.Panic(Lit("implement me"))
 	})
 
-	driverDir := baseDriverPath + "/" + driverName
-	driverFile := driverDir + "/" + driverName + ".go"
+	driverDir := filepath.Join(baseDriverPath, "/", driverName)
+	driverFile := filepath.Join(driverDir, "/", driverName+".go")
 
 	morph.InfoLoggerLight.Printf("\t-- create_dir(%s)\n", driverDir)
 	if err := os.Mkdir(driverDir, 0755); err != nil {
