@@ -231,8 +231,8 @@ func (pg *postgres) Close() error {
 			return &drivers.DatabaseError{
 				OrigErr: err,
 				Driver:  driverName,
-				Message: "failed to close database connection",
-				Command: "pg_conn_close",
+				Message: "failed to close database",
+				Command: "pg_db_close",
 				Query:   nil,
 			}
 		}
