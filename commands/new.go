@@ -146,8 +146,8 @@ func generateNewDriver(driverName string) error {
 		g.Panic(Lit("implement me"))
 	})
 
-	driverDir := filepath.Join(baseDriverPath, "/", driverName)
-	driverFile := filepath.Join(driverDir, "/", driverName+".go")
+	driverDir := filepath.Join(baseDriverPath, driverName)
+	driverFile := filepath.Join(driverDir, driverName+".go")
 
 	morph.InfoLoggerLight.Printf("\t-- create_dir(%s)\n", driverDir)
 	if err := os.Mkdir(driverDir, 0755); err != nil {
