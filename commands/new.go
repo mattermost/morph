@@ -40,7 +40,7 @@ func NewDriverCmd() *cobra.Command {
 func newDriverCmdF(cmd *cobra.Command, args []string) error {
 	driverName := args[0]
 	morph.InfoLogger.Printf("Generating necessary file structure for %q driver\n", driverName)
-	driverDir := filepath.Join(baseDriverPath, "/", driverName)
+	driverDir := filepath.Join(baseDriverPath, driverName)
 
 	if _, err := os.Stat(driverDir); !os.IsNotExist(err) {
 		return fmt.Errorf("driver %q already exists, skipping", driverName)
