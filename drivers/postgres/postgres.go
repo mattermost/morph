@@ -1,11 +1,13 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"log"
 	"strconv"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/models"
@@ -16,8 +18,6 @@ var (
 	driverName    = "postgres"
 	defaultConfig = &Config{
 		MigrationsTable:        "schema_migrations",
-		DatabaseName:           "",
-		SchemaName:             "",
 		StatementTimeoutInSecs: 5,
 		MigrationMaxSize:       defaultMigrationMaxSize,
 	}
@@ -30,23 +30,44 @@ var (
 )
 
 func init() {
-	db := postgres{}
-	drivers.Register("postgres", &db)
-	drivers.Register("postgresql", &db)
+	drivers.Register("postgres", &postgres{})
 }
 
 type Config struct {
 	MigrationsTable        string
-	DatabaseName           string
-	SchemaName             string
 	StatementTimeoutInSecs int
 	MigrationMaxSize       int
+	databaseName           string
+	schemaName             string
 }
 
 type postgres struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *Config
+}
+
+func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
+	driverConfig := mergeConfigs(config, defaultConfig)
+
+	conn, err := dbInstance.Conn(context.Background())
+	if err != nil {
+		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
+	}
+
+	if driverConfig.databaseName, err = currentDatabaseNameFromDB(conn, driverConfig); err != nil {
+		return nil, err
+	}
+
+	if driverConfig.schemaName, err = currentSchema(conn, driverConfig); err != nil {
+		return nil, err
+	}
+
+	return &postgres{
+		conn:   conn,
+		db:     dbInstance,
+		config: driverConfig,
+	}, nil
 }
 
 func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
@@ -70,12 +91,43 @@ func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "opening_connection", OrigErr: err, Message: "failed to open connection with the database"}
 	}
 
-	postgres := &postgres{
-		db:     db,
-		config: driverConfig,
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	return postgres, nil
+	if driverConfig.databaseName, err = extractDatabaseNameFromURL(connURL); err != nil {
+		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
+	}
+
+	if driverConfig.schemaName, err = currentSchema(conn, driverConfig); err != nil {
+		return nil, err
+	}
+
+	pg.db = db
+	pg.config = driverConfig
+	pg.conn = conn
+
+	return pg, nil
+}
+
+func currentSchema(conn *sql.Conn, config *Config) (string, error) {
+	query := "SELECT CURRENT_SCHEMA()"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	var schemaName string
+	if err := conn.QueryRowContext(ctx, query).Scan(&schemaName); err != nil {
+		return "", &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to fetch current schema",
+			Command: "current_schema",
+			Query:   []byte(query),
+		}
+	}
+	return schemaName, nil
 }
 
 func mergeConfigWithParams(params map[string]string, config *Config) (*Config, error) {
@@ -101,34 +153,291 @@ func mergeConfigWithParams(params map[string]string, config *Config) (*Config, e
 	return config, nil
 }
 
-func (pg *postgres) Ping() error {
-	return pg.db.Ping()
+func mergeConfigs(config, defaultConfig *Config) *Config {
+	if config.MigrationsTable == "" {
+		config.MigrationsTable = defaultConfig.MigrationsTable
+	}
+
+	if config.StatementTimeoutInSecs == 0 {
+		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
+	}
+
+	if config.MigrationMaxSize == 0 {
+		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
+	}
+
+	return config
 }
 
-func (pg *postgres) CreateSchemaTable() error {
-	panic("implement me")
+func (pg *postgres) Ping() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	return pg.conn.PingContext(ctx)
+}
+
+func (pg *postgres) CreateSchemaTableIfNotExists() (err error) {
+	if pg.conn == nil {
+		return &drivers.AppError{
+			OrigErr: errors.New("driver has no connection established"),
+			Message: "database connection is missing",
+			Driver:  driverName,
+		}
+	}
+
+	if err = pg.Lock(); err != nil {
+		return err
+	}
+	defer func() {
+		// If we saw no error prior to unlocking and unlocking returns an error we need to
+		// assign the unlocking error to err
+		if unlockErr := pg.Unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	createTableIfNotExistsQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (version bigint not null primary key, name varchar not null)", pg.config.MigrationsTable)
+	if _, err = pg.conn.ExecContext(ctx, createTableIfNotExistsQuery); err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed while executing query",
+			Command: "create_migrations_table_if_not_exists",
+			Query:   []byte(createTableIfNotExistsQuery),
+		}
+	}
+
+	return nil
 }
 
 func (pg *postgres) Close() error {
-	panic("implement me")
+	if pg.conn != nil {
+		if err := pg.conn.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database connection",
+				Command: "pg_conn_close",
+				Query:   nil,
+			}
+		}
+	}
+
+	if pg.db != nil {
+		if err := pg.db.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database",
+				Command: "pg_db_close",
+				Query:   nil,
+			}
+		}
+	}
+
+	pg.db = nil
+	pg.conn = nil
+	return nil
 }
 
 func (pg *postgres) Lock() error {
-	panic("implement me")
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.databaseName, pg.config.schemaName)
+	if err != nil {
+		return err
+	}
+
+	// This will wait until the lock can be acquired or until the statement timeout has reached.
+	query := "SELECT pg_advisory_lock($1)"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	if _, err := pg.conn.ExecContext(ctx, query, aid); err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to obtain advisory lock",
+			Command: "lock_migrations_table",
+			Query:   []byte(query),
+		}
+	}
+
+	return nil
 }
 
-func (pg *postgres) UnLock() error {
-	panic("implement me")
+func (pg *postgres) Unlock() error {
+	aid, err := drivers.GenerateAdvisoryLockID(pg.config.databaseName, pg.config.schemaName)
+	if err != nil {
+		return err
+	}
+
+	query := "SELECT pg_advisory_unlock($1)"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	if _, err := pg.conn.ExecContext(ctx, query, aid); err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to unlock advisory lock",
+			Command: "unlock_migrations_table",
+			Query:   []byte(query),
+		}
+	}
+
+	return nil
 }
 
-func (pg *postgres) Apply(migration *models.Migration) error {
-	panic("implement me")
+func (pg *postgres) Apply(migration *models.Migration) (err error) {
+	if err = pg.Lock(); err != nil {
+		return err
+	}
+	defer func() {
+		// If we saw no error prior to unlocking and unlocking returns an error we need to
+		// assign the unlocking error to err
+		if unlockErr := pg.Unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	query, readErr := migration.Query()
+	if readErr != nil {
+		return &drivers.AppError{
+			OrigErr: readErr,
+			Driver:  driverName,
+			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
+		}
+	}
+	defer migration.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	transaction, err := pg.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while opening a transaction to the database",
+			Command: "begin_transaction",
+		}
+	}
+
+	if err = executeQuery(transaction, query); err != nil {
+		return err
+	}
+
+	if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
+		return err
+	}
+
+	err = transaction.Commit()
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while committing a transaction to the database",
+			Command: "commit_transaction",
+		}
+	}
+
+	return nil
 }
 
-func (pg *postgres) AppliedMigrations() ([]*models.Migration, error) {
-	panic("implement me")
+func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err error) {
+	if err = pg.Lock(); err != nil {
+		return nil, err
+	}
+	defer func() {
+		// If we saw no error prior to unlocking and unlocking returns an error we need to
+		// assign the unlocking error to err
+		if unlockErr := pg.Unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	query := fmt.Sprintf("SELECT version, name FROM %s", pg.config.MigrationsTable)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+	var appliedMigrations []*models.Migration
+	var version uint32
+	var name string
+
+	rows, err := pg.conn.QueryContext(ctx, query)
+	if err != nil {
+		return nil, &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to fetch applied migrations",
+			Command: "select_applied_migrations",
+			Query:   []byte(query),
+		}
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(&version, &name); err != nil {
+			return nil, &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to scan applied migration row",
+				Command: "scan_applied_migrations",
+			}
+		}
+
+		appliedMigrations = append(appliedMigrations, &models.Migration{
+			Name:    name,
+			Version: version,
+		})
+	}
+
+	return appliedMigrations, nil
 }
 
-func (pg *postgres) Logger() log.Logger {
-	panic("implement me")
+func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
+	return fmt.Sprintf("INSERT INTO %s (version, name) VALUES (%d, '%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
+}
+
+func executeQuery(transaction *sql.Tx, query string) error {
+	if _, err := transaction.Exec(query); err != nil {
+		if txErr := transaction.Rollback(); txErr != nil {
+			err = errors.Wrap(errors.New(err.Error()+txErr.Error()), "failed to execute query in migration transaction")
+
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Command: "rollback_transaction",
+			}
+		}
+
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to execute migration",
+			Command: "executing_query",
+			Query:   []byte(query),
+		}
+	}
+
+	return nil
+}
+
+func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
+	query := "SELECT CURRENT_DATABASE()"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.StatementTimeoutInSecs)*time.Second)
+	defer cancel()
+
+	var databaseName string
+	if err := conn.QueryRowContext(ctx, query).Scan(&databaseName); err != nil {
+		return "", &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed to fetch database name",
+			Command: "current_database",
+			Query:   []byte(query),
+		}
+	}
+	return databaseName, nil
 }

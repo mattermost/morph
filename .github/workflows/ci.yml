@@ -1,7 +1,50 @@
 on: [push, pull_request]
 name: CI
 jobs:
-  test:
+  test-drivers:
+    env:
+      GOPATH: ${{ github.workspace }}
+      GO111MODULE: off
+
+    defaults:
+      run:
+        working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+
+    strategy:
+      matrix:
+        go-version: [1.15.x, 1.16.x]
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: morph
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+    - name: Checkout Code
+      uses: actions/checkout@v2
+      with:
+        path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+    - name: Execute Driver Tests
+      run: |
+        go get -d -t ./...
+        make test-drivers
+
+  test-rest:
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -26,11 +69,6 @@ jobs:
       uses: actions/checkout@v2
       with:
         path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
-    - name: Execute Driver Tests
-      run: |
-        go get -d -t ./...
-        make test-drivers
-      if: matrix.os == 'ubuntu-latest'
     - name: Execute Rest of the Tests
       run: |
         go get -d -t ./...

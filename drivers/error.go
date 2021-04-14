@@ -21,5 +21,5 @@ func (ae *AppError) Error() string {
 }
 
 func (de *DatabaseError) Error() string {
-	return fmt.Sprintf("driver: %s, message: %s, command: %s, originalError: %v, query: %s", de.Driver, de.Message, de.Command, de.OrigErr, string(de.Query))
+	return fmt.Sprintf("driver: %s, message: %s, command: %s, originalError: %v, query: \n\n%s\n", de.Driver, de.Message, de.Command, de.OrigErr, string(de.Query))
 }
