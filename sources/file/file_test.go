@@ -4,12 +4,10 @@
 package file
 
 import (
-	"fmt"
-	"io/ioutil"
 	"path/filepath"
 	"testing"
 
-	"github.com/go-morph/morph/models"
+	"github.com/go-morph/morph/sources/testlib"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,25 +15,12 @@ import (
 func TestFile(t *testing.T) {
 	testFilesDir := "../../testfiles"
 
-	checkMigration := func(t *testing.T, migrations []*models.Migration, i int) {
-		migration := migrations[i-1]
-		require.Contains(t, migration.Name, fmt.Sprintf("migration_%d", i))
-		b, err := ioutil.ReadAll(migration.Bytes)
-		require.NoError(t, err)
-		require.Contains(t, string(b), fmt.Sprintf("migration%d", i))
-	}
-
 	t.Run("should correctly create a source with the testfiles", func(t *testing.T) {
 		sourceURL := "file://" + testFilesDir
 		f, err := (&File{}).Open(sourceURL)
 		require.NoError(t, err)
 
-		migrations := f.Migrations()
-		require.Len(t, migrations, 3)
-
-		checkMigration(t, migrations, 1)
-		checkMigration(t, migrations, 2)
-		checkMigration(t, migrations, 3)
+		testlib.Test(t, f)
 	})
 
 	t.Run("should work correctly as well if the path is absolute", func(t *testing.T) {
@@ -45,11 +30,6 @@ func TestFile(t *testing.T) {
 		f, err := (&File{}).Open(absTestFilesDir)
 		require.NoError(t, err)
 
-		migrations := f.Migrations()
-		require.Len(t, migrations, 3)
-
-		checkMigration(t, migrations, 1)
-		checkMigration(t, migrations, 2)
-		checkMigration(t, migrations, 3)
+		testlib.Test(t, f)
 	})
 }
