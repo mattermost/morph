@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/go-morph/morph/models"
@@ -98,7 +99,7 @@ func (m *Morph) ApplyAll() error {
 		return err
 	}
 
-	for _, migration := range pendingMigrations {
+	for _, migration := range sortMigrations(pendingMigrations) {
 		start := time.Now()
 
 		m.config.Logger.Printf(InfoLoggerLight.Sprintf(migrationProgressStart+"\n", migration.Name))
@@ -111,6 +112,25 @@ func (m *Morph) ApplyAll() error {
 	}
 
 	return nil
+}
+
+func sortMigrations(migrations []*models.Migration) []*models.Migration {
+	keys := make([]string, 0, len(migrations))
+	migrationsMap := make(map[string]*models.Migration)
+
+	for _, migration := range migrations {
+		keys = append(keys, migration.Name)
+		migrationsMap[migration.Name] = migration
+	}
+
+	sort.Strings(keys)
+	sortedMigrations := make([]*models.Migration, 0, len(migrations))
+
+	for _, key := range keys {
+		sortedMigrations = append(sortedMigrations, migrationsMap[key])
+	}
+
+	return sortedMigrations
 }
 
 func computePendingMigrations(appliedMigrations []*models.Migration, sourceMigrations []*models.Migration) ([]*models.Migration, error) {
