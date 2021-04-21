@@ -17,7 +17,7 @@ import (
 func TestBindata(t *testing.T) {
 	checkMigration := func(t *testing.T, migrations []*models.Migration, i int) {
 		migration := migrations[i-1]
-		require.Contains(t, migration.FileName, fmt.Sprintf("migration_%d", i))
+		require.Contains(t, migration.Name, fmt.Sprintf("migration_%d", i))
 		b, err := ioutil.ReadAll(migration.Bytes)
 		require.NoError(t, err)
 		require.Contains(t, string(b), fmt.Sprintf("migration%d", i))

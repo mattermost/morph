@@ -28,7 +28,6 @@ func init() {
 }
 
 type Bindata struct {
-	path        string
 	assetSource *AssetSource
 	migrations  []*models.Migration
 }
@@ -39,7 +38,6 @@ func (b *Bindata) Open(url string) (sources.Source, error) {
 
 func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 	b := &Bindata{
-		path:        "<embed::go-bindata>",
 		assetSource: assetSource,
 		migrations:  []*models.Migration{},
 	}
@@ -51,8 +49,8 @@ func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 		}
 
 		m := &models.Migration{
-			FileName: filename,
-			Bytes:    ioutil.NopCloser(bytes.NewReader(migrationBytes)),
+			Name:  filename,
+			Bytes: ioutil.NopCloser(bytes.NewReader(migrationBytes)),
 		}
 
 		b.migrations = append(b.migrations, m)
