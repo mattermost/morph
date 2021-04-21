@@ -27,6 +27,22 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+          -
+      mysql:
+        image: "mysql:5.7"
+        env:
+          MYSQL_DATABASE: morph_test
+          MYSQL_USER: morph
+          MYSQL_PASSWORD: morph
+          MYSQL_ROOT_PASSWORD: morph        # Set health checks to wait until mysql has started
+        command: --default-authentication-plugin=mysql_native_password
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3307:3306
 
     runs-on: ubuntu-latest
 

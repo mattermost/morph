@@ -12,6 +12,7 @@ import (
 	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/sources"
 
+	_ "github.com/go-morph/morph/drivers/mysql"
 	_ "github.com/go-morph/morph/drivers/postgres"
 
 	_ "github.com/go-morph/morph/sources/file"
