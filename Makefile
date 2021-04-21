@@ -1,35 +1,42 @@
 all: test
 
+GO=go
 
 .PHONY: test
 test:
-	go clean -testcache
+	$(GO) clean -testcache
 	make test-drivers
 	make test-rest
 
 .PHONY: test-rest
 test-rest:
-	go clean -testcache
-	go test -race -v --tags=!drivers,sources ./...
+	$(GO) clean -testcache
+	$(GO) test -race -v --tags=!drivers,sources ./...
 
 .PHONY: test-drivers
 test-drivers:
-	go clean -testcache
-	go test -race -v --tags=drivers,!sources ./...
+	$(GO) clean -testcache
+	$(GO) test -race -v --tags=drivers,!sources ./...
 
 .PHONY: update-dependencies
 update-dependencies:
-	go get -u ./...
-	go mod vendor
-	go mod tidy
-
+	$(GO) get -u ./...
+	$(GO) mod vendor
+	$(GO) mod tidy
 
 .PHONY: vendor
 vendor:
-	go mod vendor
-	go mod tidy
-
+	$(GO) mod vendor
+	$(GO) mod tidy
 
 .PHONY: check
 check:
-	go fmt ./...
+	$(GO) fmt ./...
+
+.PHONY: run-databases
+run-databases:
+	docker-compose up --no-recreate -d
+
+.PHONY: install
+install:
+	$(GO) install -mod=readonly -trimpath ./cmd/morph

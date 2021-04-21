@@ -12,10 +12,15 @@ func ApplyCmd() *cobra.Command {
 		Short: "Applies migrations",
 	}
 
-	cmd.PersistentFlags().StringP("dsn", "d", "", "the dsn of the database")
+	cmd.PersistentFlags().StringP("driver", "d", "", "the database driver of the migrations")
+	cmd.MarkPersistentFlagRequired("driver")
+	cmd.PersistentFlags().String("dsn", "", "the dsn of the database")
 	cmd.MarkPersistentFlagRequired("dsn")
+
 	cmd.PersistentFlags().StringP("source", "s", "", "the source of the migrations")
 	cmd.MarkPersistentFlagRequired("source")
+	cmd.PersistentFlags().StringP("path", "p", "", "the source path of the migrations")
+	cmd.MarkPersistentFlagRequired("path")
 
 	cmd.AddCommand(
 		UpApplyCmd(),
@@ -67,9 +72,11 @@ func downApplyCmdF(cmd *cobra.Command, _ []string) error {
 func migrateApplyCmdF(cmd *cobra.Command, _ []string) error {
 	dsn, _ := cmd.Flags().GetString("dsn")
 	source, _ := cmd.Flags().GetString("source")
+	driverName, _ := cmd.Flags().GetString("driver")
+	path, _ := cmd.Flags().GetString("path")
 
 	morph.InfoLogger.Println("Applying all pending migrations...")
-	if err := apply.Migrate(dsn, source); err != nil {
+	if err := apply.Migrate(dsn, source, driverName, path); err != nil {
 		return err
 	}
 	morph.SuccessLogger.Println("Pending migrations applied.")

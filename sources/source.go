@@ -2,7 +2,6 @@ package sources
 
 import (
 	"fmt"
-	"net/url"
 	"sync"
 
 	"github.com/go-morph/morph/models"
@@ -36,17 +35,12 @@ func List() []string {
 	return sources
 }
 
-func Open(sourceURL string) (Source, error) {
-	uri, err := url.Parse(sourceURL)
-	if err != nil {
-		return nil, fmt.Errorf("unsupported source scheme found: %w", err)
-	}
-
+func Open(sourceName, sourceURL string) (Source, error) {
 	sourcesMu.RLock()
-	source, ok := registeredSources[uri.Scheme]
+	source, ok := registeredSources[sourceName]
 	sourcesMu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("unsupported source %q found", uri.Scheme)
+		return nil, fmt.Errorf("unsupported source %q found", sourceName)
 	}
 
 	return source.Open(sourceURL)
