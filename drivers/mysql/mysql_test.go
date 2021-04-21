@@ -1,3 +1,6 @@
+// +build !sources
+// +build drivers
+
 package mysql
 
 import (
@@ -292,7 +295,7 @@ func (suite *MysqlTestSuite) TestAppliedMigrations() {
 
 	insertMigrationsQuery := fmt.Sprintf(`
 		INSERT INTO %s(Version, Name)
-		VALUES 
+		VALUES
 		       (1, 'test_1'),
 			   (3, 'test_3'),
 			   (2, 'test_2');
@@ -413,7 +416,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			for _, appliedMigration := range appliedMigrations {
 				insertMigrationsQuery := fmt.Sprintf(`
 					INSERT INTO %s(Version, Name)
-					VALUES 
+					VALUES
 		       			(%d, '%s');
 				`, defaultConfig.MigrationsTable, appliedMigration.Version, appliedMigration.Name)
 				_, err = suite.testDB.Exec(insertMigrationsQuery)
