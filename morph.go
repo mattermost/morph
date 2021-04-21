@@ -115,22 +115,11 @@ func (m *Morph) ApplyAll() error {
 }
 
 func sortMigrations(migrations []*models.Migration) []*models.Migration {
-	keys := make([]string, 0, len(migrations))
-	migrationsMap := make(map[string]*models.Migration)
+	sort.Slice(migrations, func(i, j int) bool {
+		return migrations[i].Name < migrations[j].Name
+	})
 
-	for _, migration := range migrations {
-		keys = append(keys, migration.Name)
-		migrationsMap[migration.Name] = migration
-	}
-
-	sort.Strings(keys)
-	sortedMigrations := make([]*models.Migration, 0, len(migrations))
-
-	for _, key := range keys {
-		sortedMigrations = append(sortedMigrations, migrationsMap[key])
-	}
-
-	return sortedMigrations
+	return migrations
 }
 
 func computePendingMigrations(appliedMigrations []*models.Migration, sourceMigrations []*models.Migration) ([]*models.Migration, error) {
