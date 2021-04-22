@@ -309,70 +309,76 @@ func (suite *MysqlTestSuite) TestAppliedMigrations() {
 }
 
 func (suite *MysqlTestSuite) TestApply() {
-	testData := []map[string]interface{}{
+	testData := []struct {
+		Scenario                  string
+		PendingMigrations         []*models.Migration
+		AppliedMigrations         []*models.Migration
+		ExpectedAppliedMigrations int
+		Errors                    []error
+	}{
 		{
-			"scenario": "with no applied migrations and single statement, it applies migration",
-			"pendingMigrations": []*models.Migration{
+			"with no applied migrations and single statement, it applies migration",
+			[]*models.Migration{
 				{
 					Version: 1,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
 					Name:    "migration_1.sql",
 				},
 			},
-			"appliedMigrations":         []*models.Migration{},
-			"expectedAppliedMigrations": 1,
-			"errors":                    []error{nil},
+			[]*models.Migration{},
+			1,
+			[]error{nil},
 		},
 		{
-			"scenario": "with no applied migrations and multiple statements, it applies migration",
-			"pendingMigrations": []*models.Migration{
+			"with no applied migrations and multiple statements, it applies migration",
+			[]*models.Migration{
 				{
 					Version: 1,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
 					Name:    "migration_1.sql",
 				},
 			},
-			"appliedMigrations":         []*models.Migration{},
-			"expectedAppliedMigrations": 1,
-			"errors":                    []error{nil},
+			[]*models.Migration{},
+			1,
+			[]error{nil},
 		},
 		{
-			"scenario": "with applied migrations and single statement, it applies migration",
-			"pendingMigrations": []*models.Migration{
+			"with applied migrations and single statement, it applies migration",
+			[]*models.Migration{
 				{
 					Version: 2,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
 					Name:    "migration_2.sql",
 				},
 			},
-			"appliedMigrations": []*models.Migration{
+			[]*models.Migration{
 				{
 					Version: 1,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
 					Name:    "migration_1.sql",
 				},
 			},
-			"expectedAppliedMigrations": 2,
-			"errors":                    []error{nil, nil},
+			2,
+			[]error{nil, nil},
 		},
 		{
-			"scenario": "when migration fails, it rollback the migration",
-			"pendingMigrations": []*models.Migration{
+			"when migration fails, it rollback the migration",
+			[]*models.Migration{
 				{
 					Version: 1,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
 					Name:    "migration_1.sql",
 				},
 			},
-			"appliedMigrations":         []*models.Migration{},
-			"expectedAppliedMigrations": 0,
-			"errors": []error{
+			[]*models.Migration{},
+			0,
+			[]error{
 				errors.New("driver: mysql, message: failed when applying migration, command: apply_migration, originalError: Error 1146: Table 'morph_test.foobar' doesn't exist, query: \n\nselect * from foobar;\n"),
 			},
 		},
 		{
-			"scenario": "when future migration fails, it rollback only the failed migration",
-			"pendingMigrations": []*models.Migration{
+			"when future migration fails, it rollback only the failed migration",
+			[]*models.Migration{
 				{
 					Version: 1,
 					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
@@ -384,9 +390,9 @@ func (suite *MysqlTestSuite) TestApply() {
 					Name:    "migration_2.sql",
 				},
 			},
-			"appliedMigrations":         []*models.Migration{},
-			"expectedAppliedMigrations": 1,
-			"errors": []error{
+			[]*models.Migration{},
+			1,
+			[]error{
 				nil,
 				errors.New("driver: mysql, message: failed when applying migration, command: apply_migration, originalError: Error 1146: Table 'morph_test.foobar' doesn't exist, query: \n\nselect * from foobar;\n"),
 			},
@@ -394,11 +400,11 @@ func (suite *MysqlTestSuite) TestApply() {
 	}
 
 	for _, elem := range testData {
-		suite.T().Run(elem["scenario"].(string), func(t *testing.T) {
-			appliedMigrations := elem["appliedMigrations"].([]*models.Migration)
-			pendingMigrations := elem["pendingMigrations"].([]*models.Migration)
-			expectedAppliedMigrations := elem["expectedAppliedMigrations"].(int)
-			expectedErrors := elem["errors"].([]error)
+		suite.T().Run(elem.Scenario, func(t *testing.T) {
+			appliedMigrations := elem.AppliedMigrations
+			pendingMigrations := elem.PendingMigrations
+			expectedAppliedMigrations := elem.ExpectedAppliedMigrations
+			expectedErrors := elem.Errors
 
 			driver, err := drivers.GetDriver(driverName)
 			suite.Require().NoError(err, "fetching already registered driver should not fail")

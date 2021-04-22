@@ -90,7 +90,7 @@ func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	if driverConfig.databaseName, err = extractDatabaseNameFromURL(connURL); err != nil {
+	if driverConfig.databaseName, err = extractDatabaseNameFromURL(sanitizedConnURL); err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
 	}
 
