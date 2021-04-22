@@ -11,13 +11,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const numDigits = 6
+
 func GenerateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "generate <file name>",
-		Short: "Creates new migrations",
-		Long:  "morph generate create_users --driver postgresql --dir db/migrations --timestamp",
-		Args:  cobra.ExactArgs(1),
-		Run:   generateCmdF,
+		Use:     "generate <file name>",
+		Short:   "Creates new migrations",
+		Example: "morph generate create_users --driver postgresql --dir db/migrations --timestamp",
+		Args:    cobra.ExactArgs(1),
+		Run:     generateCmdF,
 	}
 
 	cmd.Flags().StringP("driver", "d", "", "the driver to use.")
@@ -25,7 +27,6 @@ func GenerateCmd() *cobra.Command {
 	cmd.Flags().StringP("timeformat", "f", "unix", "timestamp format to be used for timestamps.")
 	cmd.Flags().StringP("timezone", "z", "utc", "time zone to be used for timestamps.")
 	cmd.Flags().BoolP("sequence", "s", false, "a sequence number prefix will be added to migration file if set.")
-	cmd.Flags().IntP("number-of-digits", "n", 6, "number of digits to be used in sequence prefix.")
 	_ = cmd.MarkFlagRequired("driver")
 
 	return cmd
@@ -33,7 +34,8 @@ func GenerateCmd() *cobra.Command {
 
 func generateCmdF(cmd *cobra.Command, args []string) {
 	dir, _ := cmd.Flags().GetString("dir")
-	extention := "sql"
+	driver, _ := cmd.Flags().GetString("driver")
+	extention := getExtension(driver)
 	fileName := args[0]
 
 	if ts, _ := cmd.Flags().GetBool("timestamp"); ts {
@@ -55,7 +57,6 @@ func generateCmdF(cmd *cobra.Command, args []string) {
 			fileName = strings.Join([]string{date.Format(tf), fileName}, "_")
 		}
 	} else if seq, _ := cmd.Flags().GetBool("sequence"); seq {
-		numDigits, _ := cmd.Flags().GetInt("number-of-digits")
 		next, err := sequelNumber(dir, extention)
 		if err != nil {
 			cmd.PrintErrln(err)
@@ -64,14 +65,13 @@ func generateCmdF(cmd *cobra.Command, args []string) {
 
 		version := fmt.Sprintf("%0[2]*[1]d", next, numDigits)
 		if len(version) > numDigits {
-			cmd.PrintErrf("next sequence number is has %d digit(s), %d is specified\n", len(version), numDigits)
+			cmd.PrintErrf("next sequence number is has %d digit(s), max %d digits allowed.\n", len(version), numDigits)
 			return
 		}
 
 		fileName = strings.Join([]string{version, fileName}, "_")
 	}
 
-	driver, _ := cmd.Flags().GetString("driver")
 	dir = filepath.Join(dir, driver)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		cmd.PrintErrln(err)
@@ -115,4 +115,13 @@ func sequelNumber(dir, extention string) (int, error) {
 	}
 
 	return int(sequel + 1), nil
+}
+
+func getExtension(driver string) string {
+	switch driver {
+	case "postgresql", "mysql":
+		return "sql"
+	default:
+		return "txt"
+	}
 }
