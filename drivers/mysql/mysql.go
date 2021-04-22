@@ -15,8 +15,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var driverName = "mysql"
-var defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
+const driverName = "mysql"
+const defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
 var defaultConfig = &Config{
 	MigrationsTable:        "schema_migrations",
 	StatementTimeoutInSecs: 5,
