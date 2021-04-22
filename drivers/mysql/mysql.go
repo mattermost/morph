@@ -62,8 +62,6 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 	return &mysql{config: config}, nil
 }
 
-// Implement bellow all the methods of the driver interface in order
-// to complete the driver functionality
 func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
