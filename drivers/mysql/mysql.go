@@ -59,7 +59,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	return &mysql{config: config}, nil
+	return &mysql{config: driverConfig}, nil
 }
 
 func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
