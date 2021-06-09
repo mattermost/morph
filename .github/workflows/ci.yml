@@ -27,7 +27,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-          -
+
       mysql:
         image: "mysql:5.7"
         env:
