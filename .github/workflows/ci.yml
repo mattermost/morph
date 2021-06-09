@@ -35,7 +35,6 @@ jobs:
           MYSQL_USER: morph
           MYSQL_PASSWORD: morph
           MYSQL_ROOT_PASSWORD: morph        # Set health checks to wait until mysql has started
-        command: --default-authentication-plugin=mysql_native_password
         options: >-
           --health-cmd="mysqladmin ping"
           --health-interval=10s
