@@ -86,7 +86,7 @@ func (suite *PostgresTestSuite) TestOpen() {
 
 		_, err = driver.Open("something invalid")
 		suite.Assert().Error(err, "should error when connecting to database from url")
-		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something%20invalid\" in connection info string\", query: \n\n\n")
+		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something\" in connection info string\", query: \n\n\n")
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
