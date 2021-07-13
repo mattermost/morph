@@ -3,38 +3,40 @@ package drivers
 import (
 	"fmt"
 	"hash/crc32"
-	"net/url"
+	"regexp"
+	"strings"
 )
 
-func ParseCustomParams(conn string, params []string) (map[string]string, error) {
-	uri, err := url.Parse(conn)
-	if err != nil {
-		return nil, err
-	}
-
+func ExtractCustomParams(conn string, params []string) (map[string]string, error) {
 	result := make(map[string]string)
 	for _, param := range params {
-		if v := uri.Query().Get(param); v != "" {
-			result[param] = v
+		reg := regexp.MustCompile(fmt.Sprintf("%s=(\\w+)", param))
+		match := reg.FindStringSubmatch(conn)
+		if len(match) > 1 {
+			result[param] = match[1]
 		}
 	}
 
 	return result, nil
 }
 
-func SanitizeConnURL(conn string, params []string) (string, error) {
-	uri, err := url.Parse(conn)
-	if err != nil {
-		return conn, err
-	}
+func RemoveParamsFromURL(conn string, params []string) (string, error) {
+	prefixCorrection := regexp.MustCompile("\\?&+")
+	repeatedAmber := regexp.MustCompile("&+")
 
-	query := uri.Query()
 	for _, param := range params {
-		query.Del(param)
+		reg := regexp.MustCompile(fmt.Sprintf("%s=\\w+", param))
+		conn = string(reg.ReplaceAll([]byte(conn), []byte(``)))
 	}
-	uri.RawQuery = query.Encode()
 
-	return uri.String(), nil
+	parts := strings.Split(conn, "/")
+	urlParams := parts[len(parts)-1]
+
+	urlParams = string(prefixCorrection.ReplaceAll([]byte(urlParams), []byte(`?`)))
+	urlParams = string(repeatedAmber.ReplaceAll([]byte(urlParams), []byte(`&`)))
+	parts[len(parts)-1] = urlParams
+
+	return strings.Join(parts, "/"), nil
 }
 
 const advisoryLockIDSalt uint = 1486364155

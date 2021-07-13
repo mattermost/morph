@@ -71,12 +71,12 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 }
 
 func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
-	customParams, err := drivers.ParseCustomParams(connURL, configParams)
+	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
 	}
 
-	sanitizedConnURL, err := drivers.SanitizeConnURL(connURL, configParams)
+	sanitizedConnURL, err := drivers.RemoveParamsFromURL(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to sanitize url from custom parameters"}
 	}
