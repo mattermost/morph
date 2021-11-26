@@ -29,7 +29,7 @@ func TestSortMigrations(t *testing.T) {
 	migrationsFromNames := func(names []string) []*models.Migration {
 		migrations := []*models.Migration{}
 		for _, name := range names {
-			migrations = append(migrations, &models.Migration{Name: name})
+			migrations = append(migrations, &models.Migration{RawName: name})
 		}
 		return migrations
 	}
@@ -39,7 +39,7 @@ func TestSortMigrations(t *testing.T) {
 			sortedMigrations := sortMigrations(migrationsFromNames(tc.Migrations))
 
 			for i, migration := range sortedMigrations {
-				assert.Equalf(t, tc.ExpectedOrder[i], migration.Name, "Expected migration %q to be in position %d, but found %q instead", tc.ExpectedOrder[i], i, migration.Name)
+				assert.Equalf(t, tc.ExpectedOrder[i], migration.RawName, "Expected migration %q to be in position %d, but found %q instead", tc.ExpectedOrder[i], i, migration.RawName)
 			}
 		})
 	}

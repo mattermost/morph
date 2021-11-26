@@ -17,7 +17,7 @@ type Driver interface {
 	Close() error
 	Lock() error
 	Unlock() error
-	Apply(migration *models.Migration) error
+	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
 }
 

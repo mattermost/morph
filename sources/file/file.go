@@ -80,7 +80,11 @@ func (f *File) readMigrations() error {
 			return err
 		}
 
-		m := &models.Migration{Bytes: file, Name: filepath.Base(path)}
+		m, err := models.NewMigration(file, filepath.Base(path))
+		if err != nil {
+			return fmt.Errorf("could not create migration: %w", err)
+		}
+
 		migrations = append(migrations, m)
 		return nil
 	})

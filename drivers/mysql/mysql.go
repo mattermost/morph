@@ -18,7 +18,7 @@ import (
 const driverName = "mysql"
 const defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
 var defaultConfig = &Config{
-	MigrationsTable:        "schema_migrations",
+	MigrationsTable:        "db_migrations",
 	StatementTimeoutInSecs: 5,
 	MigrationMaxSize:       defaultMigrationMaxSize,
 }
@@ -231,7 +231,7 @@ func (driver *mysql) CreateSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
-func (driver *mysql) Apply(migration *models.Migration) (err error) {
+func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err error) {
 	if err = driver.Lock(); err != nil {
 		return err
 	}
@@ -267,6 +267,10 @@ func (driver *mysql) Apply(migration *models.Migration) (err error) {
 
 	updateVersionContext, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
+
+	if !saveVersion {
+		return nil
+	}
 
 	updateVersionQuery := driver.addMigrationQuery(migration)
 	if _, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery); err != nil {
@@ -323,8 +327,9 @@ func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err er
 		}
 
 		appliedMigrations = append(appliedMigrations, &models.Migration{
-			Name:    name,
-			Version: version,
+			Name:      name,
+			Version:   version,
+			Direction: models.Up,
 		})
 	}
 
@@ -391,5 +396,8 @@ func mergeConfigWithParams(params map[string]string, config *Config) (*Config, e
 }
 
 func (driver *mysql) addMigrationQuery(migration *models.Migration) string {
+	if migration.Direction == models.Down {
+		return fmt.Sprintf("DELETE FROM %s WHERE (Version=%d AND NAME='%s')", driver.config.MigrationsTable, migration.Version, migration.Name)
+	}
 	return fmt.Sprintf("INSERT INTO %s (Version, Name) VALUES (%d, '%s')", driver.config.MigrationsTable, migration.Version, migration.Name)
 }
