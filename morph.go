@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-morph/morph/models"
@@ -25,6 +26,8 @@ var DefaultLockTimeout = 15 * time.Second
 
 var migrationProgressStart = "==  %s: migrating  ================================================="
 var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
+
+const maxProgressLogLength = 100
 
 type Morph struct {
 	config *Config
@@ -121,17 +124,17 @@ func (m *Morph) Apply(limit int) (int, error) {
 	for i := 0; i < steps; i++ {
 		start := time.Now()
 		migrationName := migrations[i].Name
-		m.config.Logger.Println(InfoLoggerLight.Sprintf(migrationProgressStart, migrationName))
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 		if err := m.driver.Apply(migrations[i], true); err != nil {
 			rollback, ok := rollbacks[migrationName]
 			if ok {
-				m.config.Logger.Println(ErrorLoggerLight.Sprintf("failed to apply %s, rolling back.", migrationName))
-				m.config.Logger.Println(InfoLoggerLight.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))
+				m.config.Logger.Println(ErrorLoggerLight.Sprint(formatProgress(fmt.Sprintf("failed to apply %s, rolling back.", migrationName))))
+				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))))
 
 				if err2 := m.driver.Apply(rollback, false); err2 != nil {
 					return applied, fmt.Errorf("could not rollback the migration %s: %w", migrationName, err)
 				}
-				m.config.Logger.Println(InfoLoggerLight.Sprintf("rollback completed for %s. Aborting gracefully.", migrationName))
+				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("rollback completed for %s. Aborting gracefully.", migrationName))))
 				return applied, err
 			}
 
@@ -140,7 +143,7 @@ func (m *Morph) Apply(limit int) (int, error) {
 
 		applied++
 		elapsed := time.Since(start)
-		m.config.Logger.Println(InfoLoggerLight.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))))
 	}
 
 	return applied, nil
@@ -213,7 +216,7 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 	for i := 0; i < steps; i++ {
 		start := time.Now()
 		migrationName := sortedMigrations[i].Name
-		m.config.Logger.Println(InfoLoggerLight.Sprintf(migrationProgressStart, migrationName))
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 
 		down := downMigrations[migrationName]
 		if err := m.driver.Apply(down, true); err != nil {
@@ -222,7 +225,7 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 
 		applied++
 		elapsed := time.Since(start)
-		m.config.Logger.Println(InfoLoggerLight.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))))
 	}
 
 	return applied, nil
@@ -252,4 +255,16 @@ func findDownScrips(appliedMigrations []*models.Migration, sourceMigrations []*m
 	}
 
 	return tmp, nil
+}
+
+func formatProgress(p string) string {
+	if len(p) < maxProgressLogLength {
+		return p + strings.Repeat("=", maxProgressLogLength-len(p))
+	}
+
+	if len(p) > maxProgressLogLength {
+		return p[:maxProgressLogLength]
+	}
+
+	return p
 }
