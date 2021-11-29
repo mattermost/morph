@@ -401,3 +401,26 @@ func (driver *mysql) addMigrationQuery(migration *models.Migration) string {
 	}
 	return fmt.Sprintf("INSERT INTO %s (Version, Name) VALUES (%d, '%s')", driver.config.MigrationsTable, migration.Version, migration.Name)
 }
+
+func (driver *mysql) SetConfig(key string, value interface{}) error {
+	if driver.config != nil {
+		switch key {
+		case "StatementTimeoutInSecs":
+			n, ok := value.(int)
+			if ok {
+				driver.config.StatementTimeoutInSecs = n
+				return nil
+			}
+			return fmt.Errorf("incorrect value type for %s", key)
+		case "MigrationsTable":
+			n, ok := value.(string)
+			if ok {
+				driver.config.MigrationsTable = n
+				return nil
+			}
+			return fmt.Errorf("incorrect value type for %s", key)
+		}
+	}
+
+	return fmt.Errorf("incorrect key name %q", key)
+}

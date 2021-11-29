@@ -59,6 +59,18 @@ func WithLockTimeout(lockTimeout time.Duration) EngineOption {
 	}
 }
 
+func SetMigrationTableName(name string) EngineOption {
+	return func(m *Morph) {
+		_ = m.driver.SetConfig("MigrationsTable", name)
+	}
+}
+
+func SetSatementTimeoutInSeconds(n int) EngineOption {
+	return func(m *Morph) {
+		_ = m.driver.SetConfig("StatementTimeoutInSecs", n)
+	}
+}
+
 // NewFromConnURL creates a new instance of the migrations engine from a connection url
 func NewFromConnURL(connectionURL string, source sources.Source, driverName string, options ...EngineOption) (*Morph, error) {
 	driver, err := drivers.Connect(connectionURL, driverName)
