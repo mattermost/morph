@@ -18,7 +18,7 @@ var (
 	driverName    = "postgres"
 	defaultConfig = &Config{
 		MigrationsTable:        "db_migrations",
-		StatementTimeoutInSecs: 5,
+		StatementTimeoutInSecs: 6000,
 		MigrationMaxSize:       defaultMigrationMaxSize,
 	}
 	defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
@@ -337,9 +337,6 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 
 	err = transaction.Commit()
 	if err != nil {
-		if err2 := transaction.Rollback(); err2 != nil {
-			return err2
-		}
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,

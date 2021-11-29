@@ -19,7 +19,7 @@ const driverName = "mysql"
 const defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
 var defaultConfig = &Config{
 	MigrationsTable:        "db_migrations",
-	StatementTimeoutInSecs: 5,
+	StatementTimeoutInSecs: 6000,
 	MigrationMaxSize:       defaultMigrationMaxSize,
 }
 

@@ -110,13 +110,17 @@ func (m *Morph) Apply(limit int) (int, error) {
 		return -1, err
 	}
 
-	migrations, rollbacks, err := breakDownMigrations(sortMigrations(pendingMigrations), models.Up)
+	migrations, rollbacks, err := findUpScripts(sortMigrations(pendingMigrations))
 	if err != nil {
 		return -1, err
 	}
 
 	steps := limit
-	if limit < 0 || len(migrations) < steps {
+	if len(migrations) < steps {
+		return -1, fmt.Errorf("there are only %d migrations avaliable, but you requested %d", len(migrations), steps)
+	}
+
+	if limit < 0 {
 		steps = len(migrations)
 	}
 
@@ -127,7 +131,7 @@ func (m *Morph) Apply(limit int) (int, error) {
 		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 		if err := m.driver.Apply(migrations[i], true); err != nil {
 			rollback, ok := rollbacks[migrationName]
-			if ok {
+			if false && ok {
 				m.config.Logger.Println(ErrorLoggerLight.Sprint(formatProgress(fmt.Sprintf("failed to apply %s, rolling back.", migrationName))))
 				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))))
 
@@ -147,6 +151,50 @@ func (m *Morph) Apply(limit int) (int, error) {
 	}
 
 	return applied, nil
+}
+
+func (m *Morph) ApplyDown(limit int) (int, error) {
+	appliedMigrations, err := m.driver.AppliedMigrations()
+	if err != nil {
+		return -1, err
+	}
+
+	sortedMigrations := reverseSortMigrations(appliedMigrations)
+	downMigrations, err := findDownScripts(sortedMigrations, m.source.Migrations())
+
+	steps := limit
+	if len(sortedMigrations) < steps {
+		return -1, fmt.Errorf("there are only %d migrations avaliable, but you requested %d", len(sortedMigrations), steps)
+	}
+
+	if limit < 0 {
+		steps = len(sortedMigrations)
+	}
+
+	var applied int
+	for i := 0; i < steps; i++ {
+		start := time.Now()
+		migrationName := sortedMigrations[i].Name
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
+
+		down := downMigrations[migrationName]
+		if err := m.driver.Apply(down, true); err != nil {
+			return applied, err
+		}
+
+		applied++
+		elapsed := time.Since(start)
+		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))))
+	}
+
+	return applied, nil
+}
+
+func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
+	sort.Slice(migrations, func(i, j int) bool {
+		return migrations[i].Version > migrations[j].Version
+	})
+	return migrations
 }
 
 func sortMigrations(migrations []*models.Migration) []*models.Migration {
@@ -177,11 +225,11 @@ func computePendingMigrations(appliedMigrations []*models.Migration, sourceMigra
 	return pendingMigrations, nil
 }
 
-func breakDownMigrations(migrations []*models.Migration, direction models.Direction) ([]*models.Migration, map[string]*models.Migration, error) {
+func findUpScripts(migrations []*models.Migration) ([]*models.Migration, map[string]*models.Migration, error) {
 	rollbackMigrations := make(map[string]*models.Migration)
 	toBeAppliedMigrations := make([]*models.Migration, 0)
 	for _, migration := range migrations {
-		if migration.Direction != direction {
+		if migration.Direction != models.Up {
 			rollbackMigrations[migration.Name] = migration
 			continue
 		}
@@ -198,47 +246,7 @@ func breakDownMigrations(migrations []*models.Migration, direction models.Direct
 	return toBeAppliedMigrations, rollbackMigrations, nil
 }
 
-func (m *Morph) ApplyDown(limit int) (int, error) {
-	appliedMigrations, err := m.driver.AppliedMigrations()
-	if err != nil {
-		return -1, err
-	}
-
-	sortedMigrations := reverseSortMigrations(appliedMigrations)
-	downMigrations, err := findDownScrips(sortedMigrations, m.source.Migrations())
-
-	steps := limit
-	if limit < 0 || len(sortedMigrations) < steps {
-		steps = len(sortedMigrations)
-	}
-
-	var applied int
-	for i := 0; i < steps; i++ {
-		start := time.Now()
-		migrationName := sortedMigrations[i].Name
-		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
-
-		down := downMigrations[migrationName]
-		if err := m.driver.Apply(down, true); err != nil {
-			return applied, err
-		}
-
-		applied++
-		elapsed := time.Since(start)
-		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds())))))
-	}
-
-	return applied, nil
-}
-
-func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version > migrations[j].Version
-	})
-	return migrations
-}
-
-func findDownScrips(appliedMigrations []*models.Migration, sourceMigrations []*models.Migration) (map[string]*models.Migration, error) {
+func findDownScripts(appliedMigrations []*models.Migration, sourceMigrations []*models.Migration) (map[string]*models.Migration, error) {
 	tmp := make(map[string]*models.Migration)
 	for _, m := range sourceMigrations {
 		if m.Direction != models.Down {
