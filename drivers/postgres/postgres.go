@@ -18,7 +18,7 @@ var (
 	driverName    = "postgres"
 	defaultConfig = &Config{
 		MigrationsTable:        "db_migrations",
-		StatementTimeoutInSecs: 6000,
+		StatementTimeoutInSecs: 60,
 		MigrationMaxSize:       defaultMigrationMaxSize,
 	}
 	defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
