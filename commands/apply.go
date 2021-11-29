@@ -76,8 +76,8 @@ func upApplyCmdF(cmd *cobra.Command, _ []string) error {
 	n, err := apply.Up(steps, dsn, source, driverName, path)
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
-	} else if n == 0 && err != nil {
-		morph.InfoLogger.Println("no migrations applied, already up to date.")
+	} else if n == 0 {
+		morph.InfoLogger.Println("no migrations applied.")
 	}
 	return err
 }
@@ -93,8 +93,8 @@ func downApplyCmdF(cmd *cobra.Command, _ []string) error {
 	n, err := apply.Down(steps, dsn, source, driverName, path)
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
-	} else if n == 0 && err != nil {
-		morph.InfoLogger.Println("no migrations applied, already up to date.")
+	} else if n == 0 {
+		morph.InfoLogger.Println("no migrations applied.")
 	}
 	return err
 }
