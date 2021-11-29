@@ -62,7 +62,7 @@ func generateNewDriver(driverName string) error {
 
 	f.Var().Add(Id("driverName")).Op("=").Add(Lit(driverName))
 	f.Var().Add(Id("defaultConfig")).Op("=").Add(Op("&")).Id("Config").Values(Dict{
-		Id("MigrationsTable"): Lit("schema_migrations"),
+		Id("MigrationsTable"): Lit("db_migrations"),
 	})
 	f.Comment("add here any custom driver configuration")
 	f.Var().Add(Id("configParams")).Op("=").Add(Index().String().Values())

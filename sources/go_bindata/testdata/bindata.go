@@ -1,8 +1,8 @@
 // Code generated for package testdata by go-bindata DO NOT EDIT. (@generated)
 // sources:
-// 202103221321_migration_1.sql
-// 202103221400_migration_2.sql
-// 202103221430_migration_3.sql
+// 202103221321_migration_1.up.sql
+// 202103221400_migration_2.up.sql
+// 202103221430_migration_3.up.sql
 package testdata
 
 import (
@@ -79,62 +79,62 @@ func (fi bindataFileInfo) Sys() interface{} {
 	return nil
 }
 
-var __202103221321_migration_1Sql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\xe4\x02\x04\x00\x00\xff\xff\x80\xcd\x96\x25\x0b\x00\x00\x00")
+var __202103221321_migration_1UpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\x04\x04\x00\x00\xff\xff\x9e\x50\x75\xf6\x0a\x00\x00\x00")
 
-func _202103221321_migration_1SqlBytes() ([]byte, error) {
+func _202103221321_migration_1UpSqlBytes() ([]byte, error) {
 	return bindataRead(
-		__202103221321_migration_1Sql,
-		"202103221321_migration_1.sql",
+		__202103221321_migration_1UpSql,
+		"202103221321_migration_1.up.sql",
 	)
 }
 
-func _202103221321_migration_1Sql() (*asset, error) {
-	bytes, err := _202103221321_migration_1SqlBytes()
+func _202103221321_migration_1UpSql() (*asset, error) {
+	bytes, err := _202103221321_migration_1UpSqlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "202103221321_migration_1.sql", size: 11, mode: os.FileMode(436), modTime: time.Unix(1618309529, 0)}
+	info := bindataFileInfo{name: "202103221321_migration_1.up.sql", size: 10, mode: os.FileMode(420), modTime: time.Unix(1637940747, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var __202103221400_migration_2Sql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\xe2\x02\x04\x00\x00\xff\xff\x43\x9e\xbb\x0e\x0b\x00\x00\x00")
+var __202103221400_migration_2UpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\xe2\x02\x04\x00\x00\xff\xff\x43\x9e\xbb\x0e\x0b\x00\x00\x00")
 
-func _202103221400_migration_2SqlBytes() ([]byte, error) {
+func _202103221400_migration_2UpSqlBytes() ([]byte, error) {
 	return bindataRead(
-		__202103221400_migration_2Sql,
-		"202103221400_migration_2.sql",
+		__202103221400_migration_2UpSql,
+		"202103221400_migration_2.up.sql",
 	)
 }
 
-func _202103221400_migration_2Sql() (*asset, error) {
-	bytes, err := _202103221400_migration_2SqlBytes()
+func _202103221400_migration_2UpSql() (*asset, error) {
+	bytes, err := _202103221400_migration_2UpSqlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "202103221400_migration_2.sql", size: 11, mode: os.FileMode(436), modTime: time.Unix(1618309529, 0)}
+	info := bindataFileInfo{name: "202103221400_migration_2.up.sql", size: 11, mode: os.FileMode(420), modTime: time.Unix(1637940747, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var __202103221430_migration_3Sql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\xe6\x02\x04\x00\x00\xff\xff\x02\xaf\xa0\x17\x0b\x00\x00\x00")
+var __202103221430_migration_3UpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xca\xcd\x4c\x2f\x4a\x2c\xc9\xcc\xcf\x33\xe6\x02\x04\x00\x00\xff\xff\x02\xaf\xa0\x17\x0b\x00\x00\x00")
 
-func _202103221430_migration_3SqlBytes() ([]byte, error) {
+func _202103221430_migration_3UpSqlBytes() ([]byte, error) {
 	return bindataRead(
-		__202103221430_migration_3Sql,
-		"202103221430_migration_3.sql",
+		__202103221430_migration_3UpSql,
+		"202103221430_migration_3.up.sql",
 	)
 }
 
-func _202103221430_migration_3Sql() (*asset, error) {
-	bytes, err := _202103221430_migration_3SqlBytes()
+func _202103221430_migration_3UpSql() (*asset, error) {
+	bytes, err := _202103221430_migration_3UpSqlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "202103221430_migration_3.sql", size: 11, mode: os.FileMode(436), modTime: time.Unix(1618309529, 0)}
+	info := bindataFileInfo{name: "202103221430_migration_3.up.sql", size: 11, mode: os.FileMode(420), modTime: time.Unix(1637940747, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -191,9 +191,9 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"202103221321_migration_1.sql": _202103221321_migration_1Sql,
-	"202103221400_migration_2.sql": _202103221400_migration_2Sql,
-	"202103221430_migration_3.sql": _202103221430_migration_3Sql,
+	"202103221321_migration_1.up.sql": _202103221321_migration_1UpSql,
+	"202103221400_migration_2.up.sql": _202103221400_migration_2UpSql,
+	"202103221430_migration_3.up.sql": _202103221430_migration_3UpSql,
 }
 
 // AssetDir returns the file names below a certain
@@ -237,9 +237,9 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"202103221321_migration_1.sql": &bintree{_202103221321_migration_1Sql, map[string]*bintree{}},
-	"202103221400_migration_2.sql": &bintree{_202103221400_migration_2Sql, map[string]*bintree{}},
-	"202103221430_migration_3.sql": &bintree{_202103221430_migration_3Sql, map[string]*bintree{}},
+	"202103221321_migration_1.up.sql": &bintree{_202103221321_migration_1UpSql, map[string]*bintree{}},
+	"202103221400_migration_2.up.sql": &bintree{_202103221400_migration_2UpSql, map[string]*bintree{}},
+	"202103221430_migration_3.up.sql": &bintree{_202103221430_migration_3UpSql, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory

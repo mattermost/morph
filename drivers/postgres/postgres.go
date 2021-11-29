@@ -17,8 +17,8 @@ import (
 var (
 	driverName    = "postgres"
 	defaultConfig = &Config{
-		MigrationsTable:        "schema_migrations",
-		StatementTimeoutInSecs: 5,
+		MigrationsTable:        "db_migrations",
+		StatementTimeoutInSecs: 60,
 		MigrationMaxSize:       defaultMigrationMaxSize,
 	}
 	defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
@@ -290,7 +290,7 @@ func (pg *postgres) Unlock() error {
 	return nil
 }
 
-func (pg *postgres) Apply(migration *models.Migration) (err error) {
+func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
 	if err = pg.Lock(); err != nil {
 		return err
 	}
@@ -329,8 +329,10 @@ func (pg *postgres) Apply(migration *models.Migration) (err error) {
 		return err
 	}
 
-	if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
-		return err
+	if saveVersion {
+		if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
+			return err
+		}
 	}
 
 	err = transaction.Commit()
@@ -387,8 +389,9 @@ func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err err
 		}
 
 		appliedMigrations = append(appliedMigrations, &models.Migration{
-			Name:    name,
-			Version: version,
+			Name:      name,
+			Version:   version,
+			Direction: models.Up,
 		})
 	}
 
@@ -396,6 +399,9 @@ func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err err
 }
 
 func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
+	if migration.Direction == models.Down {
+		return fmt.Sprintf("DELETE FROM %s WHERE (Version=%d AND NAME='%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
+	}
 	return fmt.Sprintf("INSERT INTO %s (version, name) VALUES (%d, '%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
 }
 

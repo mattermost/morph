@@ -1,5 +1,5 @@
-// +build !sources
-// +build drivers
+//go:build !sources && drivers
+// +build !sources,drivers
 
 package mysql
 
@@ -430,7 +430,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			}
 
 			for i, pendingMigration := range pendingMigrations {
-				err = connectedDriver.Apply(pendingMigration)
+				err = connectedDriver.Apply(pendingMigration, true)
 				if expectedErrors[i] != nil {
 					suite.Assert().EqualErrorf(err, expectedErrors[i].Error(), "")
 				} else {

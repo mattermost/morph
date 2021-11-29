@@ -48,9 +48,9 @@ func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 			return nil, fmt.Errorf("cannot read migration %q: %w", filename, err)
 		}
 
-		m := &models.Migration{
-			Name:  filename,
-			Bytes: ioutil.NopCloser(bytes.NewReader(migrationBytes)),
+		m, err := models.NewMigration(ioutil.NopCloser(bytes.NewReader(migrationBytes)), filename)
+		if err != nil {
+			return nil, fmt.Errorf("could not create migration: %w", err)
 		}
 
 		b.migrations = append(b.migrations, m)
