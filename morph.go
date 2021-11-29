@@ -143,7 +143,7 @@ func (m *Morph) Apply(limit int) (int, error) {
 		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 		if err := m.driver.Apply(migrations[i], true); err != nil {
 			rollback, ok := rollbacks[migrationName]
-			if false && ok {
+			if ok {
 				m.config.Logger.Println(ErrorLoggerLight.Sprint(formatProgress(fmt.Sprintf("failed to apply %s, rolling back.", migrationName))))
 				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))))
 
