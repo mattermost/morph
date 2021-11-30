@@ -35,6 +35,7 @@ engine, err := morph.NewFromConnURL(dsn, src, "mysql")
 if err != nil {
     return err
 }
+defer engine.Close()
 
 engine.ApplyAll()
 

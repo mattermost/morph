@@ -10,6 +10,7 @@ func Migrate(dsn, source, driverName, path string, options ...morph.EngineOption
 	if err != nil {
 		return err
 	}
+	defer engine.Close()
 
 	return engine.ApplyAll()
 }
@@ -19,6 +20,7 @@ func Up(limit int, dsn, source, driverName, path string, options ...morph.Engine
 	if err != nil {
 		return -1, err
 	}
+	defer engine.Close()
 
 	return engine.Apply(limit)
 }
@@ -28,6 +30,7 @@ func Down(limit int, dsn, source, driverName, path string, options ...morph.Engi
 	if err != nil {
 		return -1, err
 	}
+	defer engine.Close()
 
 	return engine.ApplyDown(limit)
 }

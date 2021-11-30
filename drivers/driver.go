@@ -13,7 +13,6 @@ var registeredDrivers = make(map[string]Driver)
 type Driver interface {
 	Open(connURL string) (Driver, error)
 	Ping() error
-	CreateSchemaTableIfNotExists() error
 	Close() error
 	Lock() error
 	Unlock() error

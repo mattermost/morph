@@ -167,7 +167,8 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 		driver, err := drivers.GetDriver(driverName)
 		suite.Require().NoError(err, "fetching already registered driver should not fail")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*postgres)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: postgres, message: database connection is missing, originalError: driver has no connection established ")
 	})
@@ -191,7 +192,8 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 								WHERE  n.nspname = 'public'
 								AND    c.relname = '%s'
 								AND    c.relkind = 'r';`, defaultConfig.MigrationsTable)
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*postgres)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
@@ -221,7 +223,8 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*postgres)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		err = suite.db.QueryRow(migrationTableExists).Scan(&result)
@@ -291,7 +294,8 @@ func (suite *PostgresTestSuite) TestAppliedMigrations() {
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
-	err = connectedDriver.CreateSchemaTableIfNotExists()
+	m := connectedDriver.(*postgres)
+	err = m.CreateSchemaTableIfNotExists()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
 	insertMigrationsQuery := fmt.Sprintf(`
@@ -417,7 +421,8 @@ func (suite *PostgresTestSuite) TestApply() {
 				suite.Require().NoError(err, "should not error when closing the database connection")
 			}()
 
-			err = connectedDriver.CreateSchemaTableIfNotExists()
+			m := connectedDriver.(*postgres)
+			err = m.CreateSchemaTableIfNotExists()
 			suite.Require().NoError(err, "should not error when creating migrations table")
 			defer func() {
 				_, err = suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))

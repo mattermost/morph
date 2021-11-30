@@ -29,6 +29,10 @@ var migrationProgressFinished = "==  %s: migrated (%s)  ========================
 
 const maxProgressLogLength = 100
 
+type migrationManager interface {
+	CreateSchemaTableIfNotExists() error
+}
+
 type Morph struct {
 	config *Config
 	driver drivers.Driver
@@ -97,11 +101,17 @@ func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, option
 		return nil, err
 	}
 
-	if err := engine.driver.CreateSchemaTableIfNotExists(); err != nil {
+	m := engine.driver.(migrationManager)
+	if err := m.CreateSchemaTableIfNotExists(); err != nil {
 		return nil, err
 	}
 
 	return engine, nil
+}
+
+// Close closes the underlying database driver
+func (m *Morph) Close() error {
+	return m.driver.Close()
 }
 
 // ApplyAll applies all pending migrations.

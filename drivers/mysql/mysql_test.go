@@ -170,7 +170,8 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		driver, err := drivers.GetDriver(driverName)
 		suite.Require().NoError(err, "fetching already registered driver should not fail")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*mysql)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: mysql, message: database connection is missing, originalError: driver has no connection established ")
 	})
@@ -192,7 +193,8 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.tables
 								WHERE  table_schema = '%s'
 								AND    table_name = '%s';`, databaseName, defaultConfig.MigrationsTable)
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*mysql)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
@@ -220,7 +222,8 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		m := driver.(*mysql)
+		err = m.CreateSchemaTableIfNotExists()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
@@ -290,7 +293,8 @@ func (suite *MysqlTestSuite) TestAppliedMigrations() {
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
-	err = connectedDriver.CreateSchemaTableIfNotExists()
+	m := connectedDriver.(*mysql)
+	err = m.CreateSchemaTableIfNotExists()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
 	insertMigrationsQuery := fmt.Sprintf(`
@@ -416,7 +420,8 @@ func (suite *MysqlTestSuite) TestApply() {
 				suite.Require().NoError(err, "should not error when closing the database connection")
 			}()
 
-			err = connectedDriver.CreateSchemaTableIfNotExists()
+			m := connectedDriver.(*mysql)
+			err = m.CreateSchemaTableIfNotExists()
 			suite.Require().NoError(err, "should not error when creating migrations table")
 
 			for _, appliedMigration := range appliedMigrations {
