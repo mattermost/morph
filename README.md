@@ -56,15 +56,15 @@ morph apply up --driver postgres --dsn "postgres://user:pass@localhost:5432/mydb
 
 ## Migration Files
 
-The migrations files should have an `up` and `down` versions. The program requires each migration to be reversable. And the naming of the migration should be in the form of following:
+The migrations files should have an `up` and `down` versions. The program requires each migration to be reversible, and the naming of the migration should be in the following form:
 ```
 0000000001_create_user.up.sql
 0000000001_create_user.down.sql
 ```
 
-The first part will determined as the db version and the part between version and `up|down.sql` will be the migration name.
+The first part will be used to determine the order in which the migrations should be applied and the next part until the `up|down.sql` suffix will be the migration name.
 
-The program requires this naming convention to be followed as it saves the version and names of the migrations. Also, it can rollback migrations with the `down` files.
+The program requires this naming convention to be followed as it saves the order and names of the migrations. Also, it can rollback migrations with the `down` files.
 
 ## LICENSE
 
