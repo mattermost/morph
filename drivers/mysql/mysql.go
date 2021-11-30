@@ -59,7 +59,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	return &mysql{config: driverConfig}, nil
+	return &mysql{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
 func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
@@ -119,19 +119,6 @@ func (driver *mysql) Close() error {
 		}
 	}
 
-	if driver.db != nil {
-		if err := driver.db.Close(); err != nil {
-			return &drivers.DatabaseError{
-				OrigErr: err,
-				Driver:  driverName,
-				Message: "failed to close database",
-				Command: "mysql_db_close",
-				Query:   nil,
-			}
-		}
-	}
-
-	driver.db = nil
 	driver.conn = nil
 	return nil
 }

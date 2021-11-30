@@ -226,19 +226,6 @@ func (pg *postgres) Close() error {
 		}
 	}
 
-	if pg.db != nil {
-		if err := pg.db.Close(); err != nil {
-			return &drivers.DatabaseError{
-				OrigErr: err,
-				Driver:  driverName,
-				Message: "failed to close database",
-				Command: "pg_db_close",
-				Query:   nil,
-			}
-		}
-	}
-
-	pg.db = nil
 	pg.conn = nil
 	return nil
 }
