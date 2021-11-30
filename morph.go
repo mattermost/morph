@@ -72,6 +72,7 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 }
 
 // NewFromConnURL creates a new instance of the migrations engine from a connection url
+// This function creates a *sql.DB instance and it won't be closed by the Close() method.
 func NewFromConnURL(connectionURL string, source sources.Source, driverName string, options ...EngineOption) (*Morph, error) {
 	driver, err := drivers.Connect(connectionURL, driverName)
 	if err != nil {
@@ -100,7 +101,7 @@ func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, option
 	return engine, nil
 }
 
-// Close closes the underlying database driver
+// Close closes the underlying database connection of the engine.
 func (m *Morph) Close() error {
 	return m.driver.Close()
 }
@@ -166,6 +167,8 @@ func (m *Morph) Apply(limit int) (int, error) {
 	return applied, nil
 }
 
+// ApplyDown rollbacks a limited number of migrations
+// if limit is given below zero, all down scripts are going to be applied.
 func (m *Morph) ApplyDown(limit int) (int, error) {
 	appliedMigrations, err := m.driver.AppliedMigrations()
 	if err != nil {
