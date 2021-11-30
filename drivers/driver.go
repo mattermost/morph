@@ -19,9 +19,24 @@ type Driver interface {
 	Unlock() error
 	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
+	SetConfig(string, interface{}) error
 }
 
-func Connect(connectionURL, driverName string) (Driver, error) {
+type DriverOption func(Driver)
+
+func SetMigrationTableName(name string) DriverOption {
+	return func(d Driver) {
+		_ = d.SetConfig("MigrationsTable", name)
+	}
+}
+
+func SetSatementTimeoutInSeconds(n int) DriverOption {
+	return func(d Driver) {
+		_ = d.SetConfig("StatementTimeoutInSecs", n)
+	}
+}
+
+func Connect(connectionURL, driverName string, options ...DriverOption) (Driver, error) {
 	driversMu.RLock()
 	driver, ok := registeredDrivers[driverName]
 	driversMu.RUnlock()
