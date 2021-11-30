@@ -81,6 +81,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 	})
 
@@ -102,6 +105,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		mysqlDriver := connectedDriver.(*mysql)
@@ -116,6 +122,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		mysqlDriver := connectedDriver.(*mysql)
@@ -130,6 +139,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		mysqlDriver := connectedDriver.(*mysql)
@@ -144,6 +156,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		mysqlDriver := connectedDriver.(*mysql)
@@ -158,6 +173,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		mysqlDriver := connectedDriver.(*mysql)
@@ -170,8 +188,7 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		driver, err := drivers.GetDriver(driverName)
 		suite.Require().NoError(err, "fetching already registered driver should not fail")
 
-		m := driver.(*mysql)
-		err = m.CreateSchemaTableIfNotExists()
+		_, err = driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: mysql, message: database connection is missing, originalError: driver has no connection established ")
 	})
@@ -185,6 +202,9 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		_, err = suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
@@ -193,8 +213,8 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.tables
 								WHERE  table_schema = '%s'
 								AND    table_name = '%s';`, databaseName, defaultConfig.MigrationsTable)
-		m := driver.(*mysql)
-		err = m.CreateSchemaTableIfNotExists()
+
+		_, err = driver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
@@ -212,6 +232,9 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		defer func() {
 			err = driver.Close()
 			suite.Require().NoError(err, "should not error when closing the database connection")
+
+			err = driver.DB().Close()
+			suite.Require().NoError(err, "should not error when closing the database instance")
 		}()
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.tables
@@ -222,8 +245,7 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
-		m := driver.(*mysql)
-		err = m.CreateSchemaTableIfNotExists()
+		_, err = driver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
@@ -241,6 +263,9 @@ func (suite *MysqlTestSuite) TestLock() {
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
+
+		err = driver.DB().Close()
+		suite.Require().NoError(err, "should not error when closing the database instance")
 	}()
 
 	err = connectedDriver.Lock()
@@ -265,6 +290,9 @@ func (suite *MysqlTestSuite) TestUnlock() {
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
+
+		err = driver.DB().Close()
+		suite.Require().NoError(err, "should not error when closing the database instance")
 	}()
 
 	err = connectedDriver.Lock()
@@ -291,10 +319,12 @@ func (suite *MysqlTestSuite) TestAppliedMigrations() {
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
+
+		err = driver.DB().Close()
+		suite.Require().NoError(err, "should not error when closing the database instance")
 	}()
 
-	m := connectedDriver.(*mysql)
-	err = m.CreateSchemaTableIfNotExists()
+	_, err = driver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
 	insertMigrationsQuery := fmt.Sprintf(`
@@ -418,10 +448,12 @@ func (suite *MysqlTestSuite) TestApply() {
 			defer func() {
 				err = driver.Close()
 				suite.Require().NoError(err, "should not error when closing the database connection")
+
+				err = driver.DB().Close()
+				suite.Require().NoError(err, "should not error when closing the database instance")
 			}()
 
-			m := connectedDriver.(*mysql)
-			err = m.CreateSchemaTableIfNotExists()
+			_, err = driver.AppliedMigrations()
 			suite.Require().NoError(err, "should not error when creating migrations table")
 
 			for _, appliedMigration := range appliedMigrations {
@@ -470,6 +502,9 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
+
+		err = driver.DB().Close()
+		suite.Require().NoError(err, "should not error when closing the database instance")
 	}()
 
 	suite.Assert().Equal(databaseName, config.databaseName)

@@ -29,10 +29,6 @@ var migrationProgressFinished = "==  %s: migrated (%s)  ========================
 
 const maxProgressLogLength = 100
 
-type migrationManager interface {
-	CreateSchemaTableIfNotExists() error
-}
-
 type Morph struct {
 	config *Config
 	driver drivers.Driver
@@ -98,11 +94,6 @@ func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, option
 	}
 
 	if err := driver.Ping(); err != nil {
-		return nil, err
-	}
-
-	m := engine.driver.(migrationManager)
-	if err := m.CreateSchemaTableIfNotExists(); err != nil {
 		return nil, err
 	}
 

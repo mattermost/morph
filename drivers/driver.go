@@ -1,6 +1,7 @@
 package drivers
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 
@@ -19,6 +20,7 @@ type Driver interface {
 	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
 	SetConfig(string, interface{}) error
+	DB() *sql.DB
 }
 
 type DriverOption func(Driver)

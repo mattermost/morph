@@ -99,6 +99,10 @@ func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 	return driver, nil
 }
 
+func (driver *mysql) DB() *sql.DB {
+	return driver.db
+}
+
 func (driver *mysql) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
@@ -181,26 +185,7 @@ func (driver *mysql) Unlock() error {
 	return nil
 }
 
-func (driver *mysql) CreateSchemaTableIfNotExists() (err error) {
-	if driver.conn == nil {
-		return &drivers.AppError{
-			OrigErr: errors.New("driver has no connection established"),
-			Message: "database connection is missing",
-			Driver:  driverName,
-		}
-	}
-
-	if err = driver.Lock(); err != nil {
-		return err
-	}
-	defer func() {
-		// If we saw no error prior to unlocking and unlocking returns an error we need to
-		// assign the unlocking error to err
-		if unlockErr := driver.Unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
+func (driver *mysql) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
 
@@ -274,6 +259,14 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 }
 
 func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err error) {
+	if driver.conn == nil {
+		return nil, &drivers.AppError{
+			OrigErr: errors.New("driver has no connection established"),
+			Message: "database connection is missing",
+			Driver:  driverName,
+		}
+	}
+
 	if err = driver.Lock(); err != nil {
 		return nil, err
 	}
@@ -284,6 +277,10 @@ func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err er
 			err = unlockErr
 		}
 	}()
+
+	if err := driver.createSchemaTableIfNotExists(); err != nil {
+		return nil, err
+	}
 
 	query := fmt.Sprintf("SELECT version, name FROM %s", driver.config.MigrationsTable)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
