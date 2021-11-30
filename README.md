@@ -1,5 +1,9 @@
 ![](https://avatars.githubusercontent.com/u/80110794?s=200&v=4)
 
+
+[![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/go-morph/morph/CI)](https://github.com/go-morph/morph/actions/workflows/ci.yml?query=branch%3Amaster)
+[![GoDoc](https://pkg.go.dev/badge/github.com/go-morph/migrate)](https://pkg.go.dev/github.com/go-morph/morph)
+
 # Morph
 
 Morph is a database migration tool that helps you to apply your migrations. It is written with Go so you can use it from your Go application as well.
