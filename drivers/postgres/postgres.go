@@ -447,3 +447,26 @@ func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
 	}
 	return databaseName, nil
 }
+
+func (pg *postgres) SetConfig(key string, value interface{}) error {
+	if pg.config != nil {
+		switch key {
+		case "StatementTimeoutInSecs":
+			n, ok := value.(int)
+			if ok {
+				pg.config.StatementTimeoutInSecs = n
+				return nil
+			}
+			return fmt.Errorf("incorrect value type for %s", key)
+		case "MigrationsTable":
+			n, ok := value.(string)
+			if ok {
+				pg.config.MigrationsTable = n
+				return nil
+			}
+			return fmt.Errorf("incorrect value type for %s", key)
+		}
+	}
+
+	return fmt.Errorf("incorrect key name %q", key)
+}

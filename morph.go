@@ -59,6 +59,18 @@ func WithLockTimeout(lockTimeout time.Duration) EngineOption {
 	}
 }
 
+func SetMigrationTableName(name string) EngineOption {
+	return func(m *Morph) {
+		_ = m.driver.SetConfig("MigrationsTable", name)
+	}
+}
+
+func SetSatementTimeoutInSeconds(n int) EngineOption {
+	return func(m *Morph) {
+		_ = m.driver.SetConfig("StatementTimeoutInSecs", n)
+	}
+}
+
 // NewFromConnURL creates a new instance of the migrations engine from a connection url
 func NewFromConnURL(connectionURL string, source sources.Source, driverName string, options ...EngineOption) (*Morph, error) {
 	driver, err := drivers.Connect(connectionURL, driverName)
@@ -131,7 +143,7 @@ func (m *Morph) Apply(limit int) (int, error) {
 		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 		if err := m.driver.Apply(migrations[i], true); err != nil {
 			rollback, ok := rollbacks[migrationName]
-			if false && ok {
+			if ok {
 				m.config.Logger.Println(ErrorLoggerLight.Sprint(formatProgress(fmt.Sprintf("failed to apply %s, rolling back.", migrationName))))
 				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))))
 
