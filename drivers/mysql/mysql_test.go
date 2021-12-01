@@ -71,7 +71,7 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 }
 
 func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
-	connectedDriver, err := drivers.Connect(connURL, driverName)
+	connectedDriver, err := Open(connURL)
 	suite.Assert().NoError(err, "should not error when connecting to database from url")
 
 	return connectedDriver, func() {
@@ -79,7 +79,7 @@ func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, f
 		suite.Require().NoError(err, "should not error when closing the database connection")
 
 		ms, ok := connectedDriver.(*mysql)
-		suite.Require().True(ok, "should be an isntence of *mysql")
+		suite.Require().True(ok, "should be an instance of *mysql")
 		err = ms.db.Close()
 		suite.Require().NoError(err, "should not error when closing the database")
 	}
@@ -92,7 +92,7 @@ func (suite *MysqlTestSuite) TestOpen() {
 	})
 
 	suite.T().Run("when connURL is invalid", func(t *testing.T) {
-		_, err := drivers.Connect("something invalid", driverName)
+		_, err := Open("something invalid")
 
 		suite.Assert().Error(err, "should error when connecting to database from url")
 		suite.Assert().EqualError(err, "driver: mysql, message: failed to open connection with the database, command: opening_connection, originalError: invalid DSN: missing the slash separating the database name, query: \n\n\n")
@@ -141,10 +141,9 @@ func (suite *MysqlTestSuite) TestOpen() {
 
 func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		driver := &mysql{}
 
-		_, err = driver.AppliedMigrations()
+		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: mysql, message: database connection is missing, originalError: driver has no connection established ")
 	})
@@ -400,7 +399,7 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 		suite.Require().NoError(err, "should not error when closing the database connection")
 
 		pg, ok := driver.(*mysql)
-		suite.Require().True(ok, "should be an isntence of *mysql")
+		suite.Require().True(ok, "should be an instance of *mysql")
 		suite.Require().NoError(pg.Close(), "should not error when closing the database")
 	}()
 

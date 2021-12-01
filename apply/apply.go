@@ -1,8 +1,12 @@
 package apply
 
 import (
+	"fmt"
+
 	"github.com/go-morph/morph"
 	"github.com/go-morph/morph/drivers"
+	"github.com/go-morph/morph/drivers/mysql"
+	"github.com/go-morph/morph/drivers/postgres"
 	"github.com/go-morph/morph/sources"
 )
 
@@ -43,7 +47,15 @@ func initializeEngine(dsn, source, driverName, path string, options ...morph.Eng
 	}
 	defer src.Close()
 
-	driver, err := drivers.Connect(dsn, driverName)
+	var driver drivers.Driver
+	switch driverName {
+	case "mysql":
+		driver, err = mysql.Open(dsn)
+	case "postgresql", "postgres":
+		driver, err = postgres.Open(dsn)
+	default:
+		err = fmt.Errorf("unsupported driver %s", driverName)
+	}
 	if err != nil {
 		return nil, err
 	}

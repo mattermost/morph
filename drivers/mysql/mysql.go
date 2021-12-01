@@ -30,10 +30,6 @@ var configParams = []string{
 	"x-statement-timeout",
 }
 
-func init() {
-	drivers.Register("mysql", &mysql{})
-}
-
 type Config struct {
 	MigrationsTable        string
 	StatementTimeoutInSecs int
@@ -62,7 +58,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 	return &mysql{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
-func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (drivers.Driver, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -92,11 +88,11 @@ func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
 	}
 
-	driver.db = db
-	driver.config = driverConfig
-	driver.conn = conn
-
-	return driver, nil
+	return &mysql{
+		conn:   conn,
+		db:     db,
+		config: driverConfig,
+	}, nil
 }
 
 func (driver *mysql) Ping() error {

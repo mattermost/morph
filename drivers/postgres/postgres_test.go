@@ -48,7 +48,7 @@ func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
 }
 
 func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
-	connectedDriver, err := drivers.Connect(connURL, driverName)
+	connectedDriver, err := Open(connURL)
 	suite.Assert().NoError(err, "should not error when connecting to database from url")
 
 	return connectedDriver, func() {
@@ -56,7 +56,7 @@ func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver
 		suite.Require().NoError(err, "should not error when closing the database connection")
 
 		pg, ok := connectedDriver.(*postgres)
-		suite.Require().True(ok, "should be an isntence of *postgres")
+		suite.Require().True(ok, "should be an instance of *postgres")
 		err = pg.db.Close()
 		suite.Require().NoError(err, "should not error when closing the database")
 	}
@@ -86,7 +86,7 @@ func (suite *PostgresTestSuite) TestOpen() {
 	})
 
 	suite.T().Run("when connURL is invalid", func(t *testing.T) {
-		_, err := drivers.Connect("something invalid", driverName)
+		_, err := Open("something invalid")
 		suite.Assert().Error(err, "should error when connecting to database from url")
 		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something\" in connection info string\", query: \n\n\n")
 	})
@@ -135,10 +135,9 @@ func (suite *PostgresTestSuite) TestOpen() {
 
 func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		driver := &postgres{}
 
-		_, err = driver.AppliedMigrations()
+		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: postgres, message: database connection is missing, originalError: driver has no connection established ")
 	})
@@ -404,7 +403,7 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 		suite.Require().NoError(err, "should not error when closing the database connection")
 
 		pg, ok := driver.(*postgres)
-		suite.Require().True(ok, "should be an isntence of *postgres")
+		suite.Require().True(ok, "should be an instance of *postgres")
 		suite.Require().NoError(pg.Close(), "should not error when closing the database")
 	}()
 

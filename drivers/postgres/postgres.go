@@ -29,10 +29,6 @@ var (
 	}
 )
 
-func init() {
-	drivers.Register("postgres", &postgres{})
-}
-
 type Config struct {
 	MigrationsTable        string
 	StatementTimeoutInSecs int
@@ -70,7 +66,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 	}, nil
 }
 
-func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (drivers.Driver, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -104,11 +100,11 @@ func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	pg.db = db
-	pg.config = driverConfig
-	pg.conn = conn
-
-	return pg, nil
+	return &postgres{
+		db:     db,
+		config: driverConfig,
+		conn:   conn,
+	}, nil
 }
 
 func currentSchema(conn *sql.Conn, config *Config) (string, error) {
