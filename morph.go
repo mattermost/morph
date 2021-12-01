@@ -71,19 +71,8 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-// NewFromConnURL creates a new instance of the migrations engine from a connection url
-// This function creates a *sql.DB instance and it won't be closed by the Close() method.
-func NewFromConnURL(connectionURL string, source sources.Source, driverName string, options ...EngineOption) (*Morph, error) {
-	driver, err := drivers.Connect(connectionURL, driverName)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewWithDriverAndSource(driver, source, options...)
-}
-
-// NewWithDriverAndSource creates a new instance of the migrations engine from an existing db instance
-func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
+// New creates a new instance of the migrations engine from an existing db instance and a source
+func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: defaultConfig,
 		source: source,

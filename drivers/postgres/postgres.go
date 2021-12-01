@@ -111,10 +111,6 @@ func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
 	return pg, nil
 }
 
-func (pg *postgres) DB() *sql.DB {
-	return pg.db
-}
-
 func currentSchema(conn *sql.Conn, config *Config) (string, error) {
 	query := "SELECT CURRENT_SCHEMA()"
 

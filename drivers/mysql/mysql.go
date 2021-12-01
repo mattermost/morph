@@ -99,10 +99,6 @@ func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 	return driver, nil
 }
 
-func (driver *mysql) DB() *sql.DB {
-	return driver.db
-}
-
 func (driver *mysql) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()

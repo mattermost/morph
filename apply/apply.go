@@ -2,6 +2,7 @@ package apply
 
 import (
 	"github.com/go-morph/morph"
+	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/sources"
 )
 
@@ -42,7 +43,12 @@ func initializeEngine(dsn, source, driverName, path string, options ...morph.Eng
 	}
 	defer src.Close()
 
-	engine, err := morph.NewFromConnURL(dsn, src, driverName, options...)
+	driver, err := drivers.Connect(dsn, driverName)
+	if err != nil {
+		return nil, err
+	}
+
+	engine, err := morph.New(driver, src, options...)
 	if err != nil {
 		return nil, err
 	}

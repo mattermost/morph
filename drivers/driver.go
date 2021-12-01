@@ -1,7 +1,6 @@
 package drivers
 
 import (
-	"database/sql"
 	"fmt"
 	"sync"
 
@@ -12,15 +11,17 @@ var driversMu sync.RWMutex
 var registeredDrivers = make(map[string]Driver)
 
 type Driver interface {
-	Open(connURL string) (Driver, error)
 	Ping() error
 	Close() error
 	Lock() error
 	Unlock() error
 	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
-	SetConfig(string, interface{}) error
-	DB() *sql.DB
+	SetConfig(key string, value interface{}) error
+}
+
+type db interface {
+	Open(connURL string) (Driver, error)
 }
 
 type DriverOption func(Driver)
@@ -50,7 +51,16 @@ func Connect(connectionURL, driverName string, options ...DriverOption) (Driver,
 		}
 	}
 
-	connectedDriver, err := driver.Open(connectionURL)
+	d, ok := driver.(db)
+	if !ok {
+		return nil, &AppError{
+			OrigErr: nil,
+			Driver:  driverName,
+			Message: "unsupported driver implementation",
+		}
+	}
+
+	connectedDriver, err := d.Open(connectionURL)
 	if err != nil {
 		return nil, err
 	}
