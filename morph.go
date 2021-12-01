@@ -71,7 +71,7 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-// New creates a new instance of the migrations engine from an existing db instance and a source
+// New creates a new instance of the migrations engine from an existing db instance and a migrations source
 func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: defaultConfig,
