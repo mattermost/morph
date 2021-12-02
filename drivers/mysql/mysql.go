@@ -124,7 +124,7 @@ func (driver *mysql) Close() error {
 				OrigErr: err,
 				Driver:  driverName,
 				Message: "failed to close database",
-				Command: "pg_db_close",
+				Command: "mysql_db_close",
 				Query:   nil,
 			}
 		}
