@@ -10,11 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
-
-	"github.com/go-morph/morph/models"
-
 	"github.com/go-morph/morph/drivers"
+	"github.com/go-morph/morph/models"
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -28,8 +26,7 @@ const adminConnURL = "postgres://postgres:morph@localhost:5432?sslmode=disable"
 
 type PostgresTestSuite struct {
 	suite.Suite
-	db     *sql.DB
-	driver drivers.Driver
+	db *sql.DB
 }
 
 func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
@@ -48,6 +45,16 @@ func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
 
 	suite.db, err = sql.Open(driverName, testConnURL)
 	suite.Require().NoError(err, "should not error when connecting to the test database")
+}
+
+func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
+	connectedDriver, err := Open(connURL)
+	suite.Assert().NoError(err, "should not error when connecting to database from url")
+
+	return connectedDriver, func() {
+		err = connectedDriver.Close()
+		suite.Require().NoError(err, "should not error when closing the database connection")
+	}
 }
 
 func (suite *PostgresTestSuite) AfterTest(_, _ string) {
@@ -69,92 +76,51 @@ func (suite *PostgresTestSuite) AfterTest(_, _ string) {
 
 func (suite *PostgresTestSuite) TestOpen() {
 	suite.T().Run("when connURL is valid and bare(no custom configuration present)", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		_, err = driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		_, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 	})
 
 	suite.T().Run("when connURL is invalid", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		_, err = driver.Open("something invalid")
+		_, err := Open("something invalid")
 		suite.Assert().Error(err, "should error when connecting to database from url")
 		suite.Assert().EqualError(err, "driver: postgres, message: failed to grab connection to the database, command: grabbing_connection, originalError: missing \"=\" after \"something\" in connection info string\", query: \n\n\n")
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		connectedDriver, err := driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
 		pgDriver := connectedDriver.(*postgres)
 		suite.Assert().EqualValues(defaultConfig, pgDriver.config)
 	})
 
 	suite.T().Run("when connURL is valid can override migrations table", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "&x-migrations-table=test")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-migrations-table=test")
+		defer teardown()
 
 		pgDriver := connectedDriver.(*postgres)
 		suite.Assert().Equal("test", pgDriver.config.MigrationsTable)
 	})
 
 	suite.T().Run("when connURL is valid can override statement timeout", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "&x-statement-timeout=10")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-statement-timeout=10")
+		defer teardown()
 
 		pgDriver := connectedDriver.(*postgres)
 		suite.Assert().Equal(10, pgDriver.config.StatementTimeoutInSecs)
 	})
 
 	suite.T().Run("when connURL is valid can override max migration size", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "&x-migration-max-size=42")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-migration-max-size=42")
+		defer teardown()
 
 		pgDriver := connectedDriver.(*postgres)
 		suite.Assert().Equal(42, pgDriver.config.MigrationMaxSize)
 	})
 
 	suite.T().Run("when connURL is valid extracts database and schema names", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
 		pgDriver := connectedDriver.(*postgres)
 		suite.Assert().Equal(databaseName, pgDriver.config.databaseName)
@@ -164,26 +130,18 @@ func (suite *PostgresTestSuite) TestOpen() {
 
 func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		driver := &postgres{}
 
-		err = driver.CreateSchemaTableIfNotExists()
+		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: postgres, message: database connection is missing, originalError: driver has no connection established ")
 	})
 
 	suite.T().Run("when x-migrations-table is missing, it creates a migrations table if not exists based on the default configuration", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
-		_, err = driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
-
-		_, err = suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))
+		_, err := suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))
 		suite.Require().NoError(err, "should not error while dropping pre-existing migrations table")
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM pg_catalog.pg_class c
@@ -191,7 +149,7 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 								WHERE  n.nspname = 'public'
 								AND    c.relname = '%s'
 								AND    c.relkind = 'r';`, defaultConfig.MigrationsTable)
-		err = driver.CreateSchemaTableIfNotExists()
+		_, err = connectedDriver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
@@ -201,15 +159,8 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 	})
 
 	suite.T().Run("when x-migrations-table exists, it creates a migrations table if not exists", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		_, err = driver.Open(testConnURL + "&x-migrations-table=awesome_migrations")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM pg_catalog.pg_class c
 								JOIN   pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -217,12 +168,18 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 								AND    c.relname = '%s'
 								AND    c.relkind = 'r';`, "awesome_migrations")
 		var result int
-		err = suite.db.QueryRow(migrationTableExists).Scan(&result)
+		err := suite.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		_, err = connectedDriver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
+
+		migrationTableExists = fmt.Sprintf(`SELECT COUNT(*) FROM pg_catalog.pg_class c
+								JOIN   pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+								WHERE  n.nspname = 'public'
+								AND    c.relname = '%s'
+								AND    c.relkind = 'r';`, defaultConfig.MigrationsTable)
 
 		err = suite.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
@@ -231,17 +188,10 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 }
 
 func (suite *PostgresTestSuite) TestLock() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.Lock()
+	err := connectedDriver.Lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
 	defer connectedDriver.Unlock()
 
@@ -255,17 +205,10 @@ func (suite *PostgresTestSuite) TestLock() {
 }
 
 func (suite *PostgresTestSuite) TestUnlock() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.Lock()
+	err := connectedDriver.Lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
 
 	advisoryLockID, err := drivers.GenerateAdvisoryLockID("morph_test", "public")
@@ -281,22 +224,15 @@ func (suite *PostgresTestSuite) TestUnlock() {
 }
 
 func (suite *PostgresTestSuite) TestAppliedMigrations() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.CreateSchemaTableIfNotExists()
+	_, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
 	insertMigrationsQuery := fmt.Sprintf(`
 		INSERT INTO %s(version, name)
-		VALUES 
+		VALUES
 		       (1, 'test_1'),
 			   (3, 'test_3'),
 			   (2, 'test_2');
@@ -407,17 +343,10 @@ func (suite *PostgresTestSuite) TestApply() {
 			expectedAppliedMigrations := elem.ExpectedAppliedMigrations
 			expectedErrors := elem.Errors
 
-			driver, err := drivers.GetDriver(driverName)
-			suite.Require().NoError(err, "fetching already registered driver should not fail")
+			connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+			defer teardown()
 
-			connectedDriver, err := driver.Open(testConnURL)
-			suite.Assert().NoError(err, "should not error when connecting to database from url")
-			defer func() {
-				err = driver.Close()
-				suite.Require().NoError(err, "should not error when closing the database connection")
-			}()
-
-			err = connectedDriver.CreateSchemaTableIfNotExists()
+			_, err := connectedDriver.AppliedMigrations()
 			suite.Require().NoError(err, "should not error when creating migrations table")
 			defer func() {
 				_, err = suite.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", defaultConfig.MigrationsTable))
@@ -427,7 +356,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			for _, appliedMigration := range appliedMigrations {
 				insertMigrationsQuery := fmt.Sprintf(`
 					INSERT INTO %s(version, name)
-					VALUES 
+					VALUES
 		       			(%d, '%s');
 				`, defaultConfig.MigrationsTable, appliedMigration.Version, appliedMigration.Name)
 				_, err = suite.db.Exec(insertMigrationsQuery)
@@ -461,7 +390,9 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{}
+	config := &Config{
+		closeDBonClose: true,
+	}
 	driver, err := WithInstance(db, config)
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {

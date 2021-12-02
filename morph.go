@@ -71,18 +71,8 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-// NewFromConnURL creates a new instance of the migrations engine from a connection url
-func NewFromConnURL(connectionURL string, source sources.Source, driverName string, options ...EngineOption) (*Morph, error) {
-	driver, err := drivers.Connect(connectionURL, driverName)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewWithDriverAndSource(driver, source, options...)
-}
-
-// NewWithDriverAndSource creates a new instance of the migrations engine from an existing db instance
-func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
+// New creates a new instance of the migrations engine from an existing db instance and a migrations source
+func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: defaultConfig,
 		source: source,
@@ -97,11 +87,12 @@ func NewWithDriverAndSource(driver drivers.Driver, source sources.Source, option
 		return nil, err
 	}
 
-	if err := engine.driver.CreateSchemaTableIfNotExists(); err != nil {
-		return nil, err
-	}
-
 	return engine, nil
+}
+
+// Close closes the underlying database connection of the engine.
+func (m *Morph) Close() error {
+	return m.driver.Close()
 }
 
 // ApplyAll applies all pending migrations.
@@ -165,6 +156,8 @@ func (m *Morph) Apply(limit int) (int, error) {
 	return applied, nil
 }
 
+// ApplyDown rollbacks a limited number of migrations
+// if limit is given below zero, all down scripts are going to be applied.
 func (m *Morph) ApplyDown(limit int) (int, error) {
 	appliedMigrations, err := m.driver.AppliedMigrations()
 	if err != nil {

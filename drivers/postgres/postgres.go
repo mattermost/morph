@@ -29,16 +29,13 @@ var (
 	}
 )
 
-func init() {
-	drivers.Register("postgres", &postgres{})
-}
-
 type Config struct {
 	MigrationsTable        string
 	StatementTimeoutInSecs int
 	MigrationMaxSize       int
 	databaseName           string
 	schemaName             string
+	closeDBonClose         bool
 }
 
 type postgres struct {
@@ -70,7 +67,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 	}, nil
 }
 
-func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (drivers.Driver, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -104,11 +101,13 @@ func (pg *postgres) Open(connURL string) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	pg.db = db
-	pg.config = driverConfig
-	pg.conn = conn
+	driverConfig.closeDBonClose = true
 
-	return pg, nil
+	return &postgres{
+		db:     db,
+		config: driverConfig,
+		conn:   conn,
+	}, nil
 }
 
 func currentSchema(conn *sql.Conn, config *Config) (string, error) {
@@ -176,26 +175,7 @@ func (pg *postgres) Ping() error {
 	return pg.conn.PingContext(ctx)
 }
 
-func (pg *postgres) CreateSchemaTableIfNotExists() (err error) {
-	if pg.conn == nil {
-		return &drivers.AppError{
-			OrigErr: errors.New("driver has no connection established"),
-			Message: "database connection is missing",
-			Driver:  driverName,
-		}
-	}
-
-	if err = pg.Lock(); err != nil {
-		return err
-	}
-	defer func() {
-		// If we saw no error prior to unlocking and unlocking returns an error we need to
-		// assign the unlocking error to err
-		if unlockErr := pg.Unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
+func (pg *postgres) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
 
@@ -226,7 +206,7 @@ func (pg *postgres) Close() error {
 		}
 	}
 
-	if pg.db != nil {
+	if pg.db != nil && pg.config.closeDBonClose {
 		if err := pg.db.Close(); err != nil {
 			return &drivers.DatabaseError{
 				OrigErr: err,
@@ -236,9 +216,9 @@ func (pg *postgres) Close() error {
 				Query:   nil,
 			}
 		}
+		pg.db = nil
 	}
 
-	pg.db = nil
 	pg.conn = nil
 	return nil
 }
@@ -349,6 +329,14 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 }
 
 func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err error) {
+	if pg.conn == nil {
+		return nil, &drivers.AppError{
+			OrigErr: errors.New("driver has no connection established"),
+			Message: "database connection is missing",
+			Driver:  driverName,
+		}
+	}
+
 	if err = pg.Lock(); err != nil {
 		return nil, err
 	}
@@ -359,6 +347,10 @@ func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err err
 			err = unlockErr
 		}
 	}()
+
+	if err := pg.createSchemaTableIfNotExists(); err != nil {
+		return nil, err
+	}
 
 	query := fmt.Sprintf("SELECT version, name FROM %s", pg.config.MigrationsTable)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pg.config.StatementTimeoutInSecs)*time.Second)

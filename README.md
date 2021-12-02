@@ -17,6 +17,7 @@ It can be used as a library or a CLI tool.
 ```Go
 import (
     "github.com/go-morph/morph"
+    "github.com/go-morph/morph/drivers/mysql"
     bindata "github.com/go-morph/morph/sources/go_bindata"
 )
 
@@ -31,10 +32,16 @@ if err != nil {
 }
 defer src.Close()
 
-engine, err := morph.NewFromConnURL(dsn, src, "mysql")
+driver, err := mysql.WithInstance(db, &mysql.Config{})
 if err != nil {
     return err
 }
+
+engine, err := morph.New(driver, src)
+if err != nil {
+    return err
+}
+defer engine.Close()
 
 engine.ApplyAll()
 

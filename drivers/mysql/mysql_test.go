@@ -26,7 +26,6 @@ type MysqlTestSuite struct {
 	suite.Suite
 	db     *sql.DB
 	testDB *sql.DB
-	driver drivers.Driver
 }
 
 func (suite *MysqlTestSuite) BeforeTest(_, _ string) {
@@ -71,94 +70,64 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 	}
 }
 
+func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
+	connectedDriver, err := Open(connURL)
+	suite.Assert().NoError(err, "should not error when connecting to database from url")
+
+	return connectedDriver, func() {
+		err = connectedDriver.Close()
+		suite.Require().NoError(err, "should not error when closing the database connection")
+	}
+}
+
 func (suite *MysqlTestSuite) TestOpen() {
 	suite.T().Run("when connURL is valid and bare(no custom configuration present)", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		_, err = driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		_, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 	})
 
 	suite.T().Run("when connURL is invalid", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		_, err := Open("something invalid")
 
-		_, err = driver.Open("something invalid")
 		suite.Assert().Error(err, "should error when connecting to database from url")
 		suite.Assert().EqualError(err, "driver: mysql, message: failed to open connection with the database, command: opening_connection, originalError: invalid DSN: missing the slash separating the database name, query: \n\n\n")
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		connectedDriver, err := driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
 		mysqlDriver := connectedDriver.(*mysql)
 		suite.Assert().EqualValues(defaultConfig, mysqlDriver.config)
 	})
 
 	suite.T().Run("when connURL is valid can override migrations table", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "?x-migrations-table=test")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migrations-table=test")
+		defer teardown()
 
 		mysqlDriver := connectedDriver.(*mysql)
 		suite.Assert().Equal("test", mysqlDriver.config.MigrationsTable)
 	})
 
 	suite.T().Run("when connURL is valid can override statement timeout", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "?x-statement-timeout=10")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-statement-timeout=10")
+		defer teardown()
 
 		mysqlDriver := connectedDriver.(*mysql)
 		suite.Assert().Equal(10, mysqlDriver.config.StatementTimeoutInSecs)
 	})
 
 	suite.T().Run("when connURL is valid can override max migration size", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL + "?x-migration-max-size=42")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migration-max-size=42")
+		defer teardown()
 
 		mysqlDriver := connectedDriver.(*mysql)
 		suite.Assert().Equal(42, mysqlDriver.config.MigrationMaxSize)
 	})
 
 	suite.T().Run("when connURL is valid extracts database name", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-		connectedDriver, err := driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
 		mysqlDriver := connectedDriver.(*mysql)
 		suite.Assert().Equal(databaseName, mysqlDriver.config.databaseName)
@@ -167,32 +136,25 @@ func (suite *MysqlTestSuite) TestOpen() {
 
 func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		driver := &mysql{}
 
-		err = driver.CreateSchemaTableIfNotExists()
+		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: mysql, message: database connection is missing, originalError: driver has no connection established ")
 	})
 
 	suite.T().Run("when x-migrations-table is missing, it creates a migrations table if not exists based on the default configuration", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		defer teardown()
 
-		_, err = driver.Open(testConnURL)
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
-
-		_, err = suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
+		_, err := suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
 		suite.Require().NoError(err, "should not error while dropping pre-existing migrations table")
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.tables
 								WHERE  table_schema = '%s'
 								AND    table_name = '%s';`, databaseName, defaultConfig.MigrationsTable)
-		err = driver.CreateSchemaTableIfNotExists()
+
+		_, err = connectedDriver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
@@ -202,25 +164,18 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 	})
 
 	suite.T().Run("when x-migrations-table exists, it creates a migrations table if not exists", func(t *testing.T) {
-		driver, err := drivers.GetDriver(driverName)
-		suite.Require().NoError(err, "fetching already registered driver should not fail")
-
-		_, err = driver.Open(testConnURL + "?x-migrations-table=awesome_migrations")
-		suite.Assert().NoError(err, "should not error when connecting to database from url")
-		defer func() {
-			err = driver.Close()
-			suite.Require().NoError(err, "should not error when closing the database connection")
-		}()
+		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migrations-table=awesome_migrations")
+		defer teardown()
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.tables
 								WHERE  table_schema = '%s'
 								AND    table_name = 'awesome_migrations';`, databaseName)
 		var result int
-		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
+		err := suite.testDB.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
-		err = driver.CreateSchemaTableIfNotExists()
+		_, err = connectedDriver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
@@ -230,17 +185,10 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 }
 
 func (suite *MysqlTestSuite) TestLock() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.Lock()
+	err := connectedDriver.Lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
 	defer connectedDriver.Unlock()
 
@@ -254,17 +202,10 @@ func (suite *MysqlTestSuite) TestLock() {
 }
 
 func (suite *MysqlTestSuite) TestUnlock() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.Lock()
+	err := connectedDriver.Lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
 
 	advisoryLockID, err := drivers.GenerateAdvisoryLockID("morph_test", defaultConfig.MigrationsTable)
@@ -280,17 +221,10 @@ func (suite *MysqlTestSuite) TestUnlock() {
 }
 
 func (suite *MysqlTestSuite) TestAppliedMigrations() {
-	driver, err := drivers.GetDriver(driverName)
-	suite.Require().NoError(err, "fetching already registered driver should not fail")
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
-	connectedDriver, err := driver.Open(testConnURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
-	defer func() {
-		err = driver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	err = connectedDriver.CreateSchemaTableIfNotExists()
+	_, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
 	insertMigrationsQuery := fmt.Sprintf(`
@@ -406,17 +340,10 @@ func (suite *MysqlTestSuite) TestApply() {
 			expectedAppliedMigrations := elem.ExpectedAppliedMigrations
 			expectedErrors := elem.Errors
 
-			driver, err := drivers.GetDriver(driverName)
-			suite.Require().NoError(err, "fetching already registered driver should not fail")
+			connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?multiStatements=true")
+			defer teardown()
 
-			connectedDriver, err := driver.Open(testConnURL + "?multiStatements=true")
-			suite.Assert().NoError(err, "should not error when connecting to database from url")
-			defer func() {
-				err = driver.Close()
-				suite.Require().NoError(err, "should not error when closing the database connection")
-			}()
-
-			err = connectedDriver.CreateSchemaTableIfNotExists()
+			_, err := connectedDriver.AppliedMigrations()
 			suite.Require().NoError(err, "should not error when creating migrations table")
 
 			for _, appliedMigration := range appliedMigrations {
@@ -459,7 +386,9 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{}
+	config := &Config{
+		closeDBonClose: true,
+	}
 	driver, err := WithInstance(db, config)
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {

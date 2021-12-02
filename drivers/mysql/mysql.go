@@ -30,15 +30,12 @@ var configParams = []string{
 	"x-statement-timeout",
 }
 
-func init() {
-	drivers.Register("mysql", &mysql{})
-}
-
 type Config struct {
 	MigrationsTable        string
 	StatementTimeoutInSecs int
 	MigrationMaxSize       int
 	databaseName           string
+	closeDBonClose         bool
 }
 
 type mysql struct {
@@ -59,10 +56,10 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	return &mysql{config: driverConfig}, nil
+	return &mysql{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
-func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (drivers.Driver, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -92,11 +89,13 @@ func (driver *mysql) Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
 	}
 
-	driver.db = db
-	driver.config = driverConfig
-	driver.conn = conn
+	driverConfig.closeDBonClose = true
 
-	return driver, nil
+	return &mysql{
+		conn:   conn,
+		db:     db,
+		config: driverConfig,
+	}, nil
 }
 
 func (driver *mysql) Ping() error {
@@ -119,7 +118,7 @@ func (driver *mysql) Close() error {
 		}
 	}
 
-	if driver.db != nil {
+	if driver.db != nil && driver.config.closeDBonClose {
 		if err := driver.db.Close(); err != nil {
 			return &drivers.DatabaseError{
 				OrigErr: err,
@@ -129,9 +128,9 @@ func (driver *mysql) Close() error {
 				Query:   nil,
 			}
 		}
+		driver.db = nil
 	}
 
-	driver.db = nil
 	driver.conn = nil
 	return nil
 }
@@ -194,26 +193,7 @@ func (driver *mysql) Unlock() error {
 	return nil
 }
 
-func (driver *mysql) CreateSchemaTableIfNotExists() (err error) {
-	if driver.conn == nil {
-		return &drivers.AppError{
-			OrigErr: errors.New("driver has no connection established"),
-			Message: "database connection is missing",
-			Driver:  driverName,
-		}
-	}
-
-	if err = driver.Lock(); err != nil {
-		return err
-	}
-	defer func() {
-		// If we saw no error prior to unlocking and unlocking returns an error we need to
-		// assign the unlocking error to err
-		if unlockErr := driver.Unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
+func (driver *mysql) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
 	defer cancel()
 
@@ -287,6 +267,14 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 }
 
 func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err error) {
+	if driver.conn == nil {
+		return nil, &drivers.AppError{
+			OrigErr: errors.New("driver has no connection established"),
+			Message: "database connection is missing",
+			Driver:  driverName,
+		}
+	}
+
 	if err = driver.Lock(); err != nil {
 		return nil, err
 	}
@@ -297,6 +285,10 @@ func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err er
 			err = unlockErr
 		}
 	}()
+
+	if err := driver.createSchemaTableIfNotExists(); err != nil {
+		return nil, err
+	}
 
 	query := fmt.Sprintf("SELECT version, name FROM %s", driver.config.MigrationsTable)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(driver.config.StatementTimeoutInSecs)*time.Second)
