@@ -35,6 +35,7 @@ type Config struct {
 	StatementTimeoutInSecs int
 	MigrationMaxSize       int
 	databaseName           string
+	closeDBonClose         bool
 }
 
 type mysql struct {
@@ -88,6 +89,8 @@ func Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
 	}
 
+	driverConfig.closeDBonClose = true
+
 	return &mysql{
 		conn:   conn,
 		db:     db,
@@ -113,6 +116,19 @@ func (driver *mysql) Close() error {
 				Query:   nil,
 			}
 		}
+	}
+
+	if driver.db != nil && driver.config.closeDBonClose {
+		if err := driver.db.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database",
+				Command: "pg_db_close",
+				Query:   nil,
+			}
+		}
+		driver.db = nil
 	}
 
 	driver.conn = nil

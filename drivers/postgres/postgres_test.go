@@ -54,11 +54,6 @@ func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver
 	return connectedDriver, func() {
 		err = connectedDriver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
-
-		pg, ok := connectedDriver.(*postgres)
-		suite.Require().True(ok, "should be an instance of *postgres")
-		err = pg.db.Close()
-		suite.Require().NoError(err, "should not error when closing the database")
 	}
 }
 
@@ -395,16 +390,14 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{}
+	config := &Config{
+		closeDBonClose: true,
+	}
 	driver, err := WithInstance(db, config)
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
-
-		pg, ok := driver.(*postgres)
-		suite.Require().True(ok, "should be an instance of *postgres")
-		suite.Require().NoError(pg.Close(), "should not error when closing the database")
 	}()
 
 	suite.Assert().Equal(databaseName, config.databaseName)

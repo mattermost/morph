@@ -35,6 +35,7 @@ type Config struct {
 	MigrationMaxSize       int
 	databaseName           string
 	schemaName             string
+	closeDBonClose         bool
 }
 
 type postgres struct {
@@ -99,6 +100,8 @@ func Open(connURL string) (drivers.Driver, error) {
 	if driverConfig.schemaName, err = currentSchema(conn, driverConfig); err != nil {
 		return nil, err
 	}
+
+	driverConfig.closeDBonClose = true
 
 	return &postgres{
 		db:     db,
@@ -201,6 +204,19 @@ func (pg *postgres) Close() error {
 				Query:   nil,
 			}
 		}
+	}
+
+	if pg.db != nil && pg.config.closeDBonClose {
+		if err := pg.db.Close(); err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to close database",
+				Command: "pg_db_close",
+				Query:   nil,
+			}
+		}
+		pg.db = nil
 	}
 
 	pg.conn = nil

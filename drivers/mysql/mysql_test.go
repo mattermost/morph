@@ -77,11 +77,6 @@ func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, f
 	return connectedDriver, func() {
 		err = connectedDriver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
-
-		ms, ok := connectedDriver.(*mysql)
-		suite.Require().True(ok, "should be an instance of *mysql")
-		err = ms.db.Close()
-		suite.Require().NoError(err, "should not error when closing the database")
 	}
 }
 
@@ -391,16 +386,14 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{}
+	config := &Config{
+		closeDBonClose: true,
+	}
 	driver, err := WithInstance(db, config)
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
-
-		pg, ok := driver.(*mysql)
-		suite.Require().True(ok, "should be an instance of *mysql")
-		suite.Require().NoError(pg.Close(), "should not error when closing the database")
 	}()
 
 	suite.Assert().Equal(databaseName, config.databaseName)

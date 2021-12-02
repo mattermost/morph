@@ -6,6 +6,8 @@ import (
 
 type Driver interface {
 	Ping() error
+	// Close closes the underlying db connection. If the driver is created via Open() function
+	// this method will also going to call Close() on the sql.db instance.
 	Close() error
 	Lock() error
 	Unlock() error
