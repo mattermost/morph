@@ -60,6 +60,8 @@ func initializeEngine(dsn, source, driverName, path string, options ...morph.Eng
 		return nil, err
 	}
 
+	options = append(options, morph.LockDB("mutex_migration"))
+
 	engine, err := morph.New(driver, src, options...)
 	if err != nil {
 		return nil, err

@@ -14,8 +14,8 @@ import (
 	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/sources"
 
-	_ "github.com/go-morph/morph/drivers/mysql"
-	_ "github.com/go-morph/morph/drivers/postgres"
+	ms "github.com/go-morph/morph/drivers/mysql"
+	ps "github.com/go-morph/morph/drivers/postgres"
 
 	_ "github.com/go-morph/morph/sources/file"
 	_ "github.com/go-morph/morph/sources/go_bindata"
@@ -33,11 +33,13 @@ type Morph struct {
 	config *Config
 	driver drivers.Driver
 	source sources.Source
+	mutex  drivers.Mutex
 }
 
 type Config struct {
 	Logger      Logger
 	LockTimeout time.Duration
+	LockKey     string
 }
 
 type EngineOption func(*Morph)
@@ -71,6 +73,12 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
+func LockDB(key string) EngineOption {
+	return func(m *Morph) {
+		m.config.LockKey = key
+	}
+}
+
 // New creates a new instance of the migrations engine from an existing db instance and a migrations source
 func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
@@ -87,11 +95,32 @@ func New(driver drivers.Driver, source sources.Source, options ...EngineOption) 
 		return nil, err
 	}
 
+	if impl, ok := driver.(drivers.Lockable); ok && engine.config.LockKey != "" {
+		var mx drivers.Mutex
+		var err error
+		switch impl.DriverName() {
+		case "mysql":
+			mx, err = ms.NewMutex(engine.config.LockKey, driver)
+		case "postgres":
+			mx, err = ps.NewMutex(engine.config.LockKey, driver)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		engine.mutex = mx
+		mx.Lock()
+	}
+
 	return engine, nil
 }
 
 // Close closes the underlying database connection of the engine.
 func (m *Morph) Close() error {
+	if m.mutex != nil {
+		m.mutex.Unlock()
+	}
+
 	return m.driver.Close()
 }
 
@@ -166,6 +195,9 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 
 	sortedMigrations := reverseSortMigrations(appliedMigrations)
 	downMigrations, err := findDownScripts(sortedMigrations, m.source.Migrations())
+	if err != nil {
+		return -1, err
+	}
 
 	steps := limit
 	if len(sortedMigrations) < steps {

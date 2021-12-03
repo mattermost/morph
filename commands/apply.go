@@ -13,13 +13,13 @@ func ApplyCmd() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringP("driver", "d", "", "the database driver of the migrations")
-	cmd.MarkPersistentFlagRequired("driver")
+	_ = cmd.MarkPersistentFlagRequired("driver")
 	cmd.PersistentFlags().String("dsn", "", "the dsn of the database")
-	cmd.MarkPersistentFlagRequired("dsn")
+	_ = cmd.MarkPersistentFlagRequired("dsn")
 
 	cmd.PersistentFlags().StringP("source", "s", "file", "the source of the migrations")
 	cmd.PersistentFlags().StringP("path", "p", "", "the source path of the migrations")
-	cmd.MarkPersistentFlagRequired("path")
+	_ = cmd.MarkPersistentFlagRequired("path")
 
 	cmd.PersistentFlags().IntP("timeout", "t", 60, "the timeout in seconds for each migration file to run")
 	cmd.PersistentFlags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
