@@ -3,12 +3,12 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/go-morph/morph/drivers"
-	"github.com/pkg/errors"
 )
 
 // Mutex is similar to sync.Mutex, except usable by morph to lock the db.
@@ -17,6 +17,7 @@ import (
 //
 // A Mutex must not be copied after first use.
 type Mutex struct {
+	noCopy
 	key string
 
 	// lock guards the variables used to manage the refresh task, and is not itself related to
@@ -58,43 +59,74 @@ func NewMutex(key string, driver drivers.Driver) (*Mutex, error) {
 // lock makes a single attempt to lock the mutex, returning true only if successful.
 func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 	now := time.Now()
-	query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ('%s', %d)", drivers.MutexTableName, m.key, now.Add(drivers.TTL).Unix())
-	if _, err := m.conn.ExecContext(ctx, query); err != nil {
-		err2 := m.releaseLock(ctx, now)
-		if err2 == nil {
-			// lock has been released due to expiration
+	tx, err := m.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+
+	query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
+	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
+		err2 := m.releaseLock(tx, now)
+		if err2 == nil { // lock has been released due to expiration
 			return true, nil
 		}
-		return false, errors.Wrapf(err, "failed to lock mutex")
+
+		return false, fmt.Errorf("failed to lock mutex: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		if txErr := tx.Rollback(); txErr != nil {
+			return false, txErr
+		}
+
+		return false, err
 	}
 
 	return true, nil
 }
 
-func (m *Mutex) releaseLock(ctx context.Context, t time.Time) error {
-	e, err := m.getExpireAt(ctx)
+func (m *Mutex) releaseLock(tx *sql.Tx, t time.Time) error {
+	e, err := m.getExpireAt(tx)
 	if err != nil {
 		return err
 	}
 
 	if t.Unix() < e {
+		if txErr := tx.Rollback(); txErr != nil {
+			return fmt.Errorf("could not rollback: %w", txErr)
+		}
+
 		return errors.New("could not release the lock")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET expireat = %d WHERE id = '%s'", drivers.MutexTableName, t.Add(drivers.TTL).Unix(), m.key)
-	_, err = m.conn.ExecContext(ctx, query)
-	if err != nil {
-		return errors.Wrap(err, "unable to set new expireat for mutex")
+	query := fmt.Sprintf("UPDATE %s SET expireat = $1 WHERE id = $2", drivers.MutexTableName)
+	if err = executeTx(tx, query, t.Add(drivers.TTL).Unix(), m.key); err != nil {
+		return err
 	}
+
+	err = tx.Commit()
+	if err != nil {
+		if txErr := tx.Rollback(); txErr != nil {
+			return fmt.Errorf("could not rollback transaction: %w", txErr)
+		}
+
+		return fmt.Errorf("unable to set new expireat for mutex: %w", err)
+	}
+
 	return nil
 }
 
-func (m *Mutex) getExpireAt(ctx context.Context) (int64, error) {
+func (m *Mutex) getExpireAt(tx *sql.Tx) (int64, error) {
 	var expireAt int64
-	query := fmt.Sprintf("SELECT expireat FROM %s WHERE id = '%s'", drivers.MutexTableName, m.key)
-	err := m.conn.QueryRowContext(ctx, query).Scan(&expireAt)
+	query := fmt.Sprintf("SELECT expireat FROM %s WHERE id = $1", drivers.MutexTableName)
+	err := tx.QueryRow(query, m.key).Scan(&expireAt)
 	if err != nil {
-		return -1, errors.Wrap(err, "failed to fetch mutex from db")
+		if txErr := tx.Rollback(); txErr != nil {
+			return -1, fmt.Errorf("could not rollback: %w", txErr)
+		}
+
+		return -1, fmt.Errorf("failed to fetch mutex from db: %w", err)
 	}
 
 	return expireAt, nil
@@ -102,17 +134,31 @@ func (m *Mutex) getExpireAt(ctx context.Context) (int64, error) {
 
 // refreshLock rewrites the lock key value with a new expiry, returning nil only if successful.
 func (m *Mutex) refreshLock(ctx context.Context) error {
-	e, err := m.getExpireAt(ctx)
+	tx, err := m.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	e, err := m.getExpireAt(tx)
 	if err != nil {
 		return err
 	}
 
 	tmp := time.Unix(e, 0)
-	query := fmt.Sprintf("UPDATE %s SET expireat = %d WHERE id = '%s'", drivers.MutexTableName, tmp.Add(drivers.TTL).Unix(), m.key)
-	_, err = m.conn.ExecContext(ctx, query)
-	if err != nil {
-		return errors.Wrap(err, "unable to refresh expireat for mutex")
+	query := fmt.Sprintf("UPDATE %s SET expireat = $1 WHERE id = $2", drivers.MutexTableName)
+	if err = executeTx(tx, query, tmp.Add(drivers.TTL).Unix(), m.key); err != nil {
+		return err
 	}
+
+	err = tx.Commit()
+	if err != nil {
+		if txErr := tx.Rollback(); txErr != nil {
+			return fmt.Errorf("could not rollback: %w", txErr)
+		}
+
+		return fmt.Errorf("unable to refresh expireat for mutex: %w", err)
+	}
+
 	return nil
 }
 
@@ -137,40 +183,39 @@ func (m *Mutex) LockWithContext(ctx context.Context) error {
 		case <-time.After(waitInterval):
 		}
 
-		locked, err := m.tryLock(ctx)
-		if err != nil {
-			waitInterval = drivers.NextWaitInterval(waitInterval, err)
-			continue
-		} else if !locked {
+		ok, err := m.tryLock(ctx)
+		if err != nil || !ok {
 			waitInterval = drivers.NextWaitInterval(waitInterval, err)
 			continue
 		}
 
-		stop := make(chan bool)
-		done := make(chan bool)
-		go func() {
-			defer close(done)
-			t := time.NewTicker(drivers.RefreshInterval)
-			for {
-				select {
-				case <-t.C:
-					err := m.refreshLock(ctx)
-					if err != nil {
-						return
-					}
-				case <-stop:
+		break
+	}
+
+	stop := make(chan bool)
+	done := make(chan bool)
+	go func() {
+		defer close(done)
+		t := time.NewTicker(drivers.RefreshInterval)
+		for {
+			select {
+			case <-t.C:
+				err := m.refreshLock(ctx)
+				if err != nil {
 					return
 				}
+			case <-stop:
+				return
 			}
-		}()
+		}
+	}()
 
-		m.lock.Lock()
-		m.stopRefresh = stop
-		m.refreshDone = done
-		m.lock.Unlock()
+	m.lock.Lock()
+	m.stopRefresh = stop
+	m.refreshDone = done
+	m.lock.Unlock()
 
-		return nil
-	}
+	return nil
 }
 
 // Unlock unlocks m. It is a run-time error if m is not locked on entry to Unlock.
@@ -189,6 +234,28 @@ func (m *Mutex) Unlock() {
 	m.lock.Unlock()
 
 	// If an error occurs deleting, the mutex will still expire, allowing later retry.
-	query := fmt.Sprintf("DELETE FROM %s WHERE id = %q", drivers.MutexTableName, m.key)
-	_, _ = m.conn.ExecContext(context.Background(), query)
+	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", drivers.MutexTableName)
+	_, _ = m.conn.ExecContext(context.Background(), query, m.key)
 }
+
+func executeTx(tx *sql.Tx, query string, args ...interface{}) error {
+	if _, err := tx.Exec(query, args...); err != nil {
+		if txErr := tx.Rollback(); txErr != nil {
+			return fmt.Errorf("could not rollback transaction: %w", txErr)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// noCopy may be embedded into structs which must not be copied
+// after the first use.
+//
+// See https://golang.org/issues/8005#issuecomment-190753527
+// for details.
+type noCopy struct{}
+
+// Lock is a no-op used by -copylocks checker from `go vet`.
+func (*noCopy) Lock() {}

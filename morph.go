@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-morph/morph/models"
@@ -21,9 +22,6 @@ import (
 	_ "github.com/go-morph/morph/sources/go_bindata"
 )
 
-// DefaultLockTimeout sets the max time a database driver has to acquire a lock.
-var DefaultLockTimeout = 15 * time.Second
-
 var migrationProgressStart = "==  %s: migrating  ================================================="
 var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
 
@@ -33,7 +31,7 @@ type Morph struct {
 	config *Config
 	driver drivers.Driver
 	source sources.Source
-	mutex  drivers.Mutex
+	mutex  sync.Locker
 }
 
 type Config struct {
@@ -45,8 +43,7 @@ type Config struct {
 type EngineOption func(*Morph)
 
 var defaultConfig = &Config{
-	LockTimeout: DefaultLockTimeout,
-	Logger:      log.New(os.Stderr, "", log.LstdFlags), // add default logger
+	Logger: log.New(os.Stderr, "", log.LstdFlags), // add default logger
 }
 
 func WithLogger(logger *log.Logger) EngineOption {
@@ -73,7 +70,8 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-func LockDB(key string) EngineOption {
+// WithLockKey creates a lock table in the database so that any other morph instance will ...
+func WithLockKey(key string) EngineOption {
 	return func(m *Morph) {
 		m.config.LockKey = key
 	}
@@ -96,7 +94,7 @@ func New(driver drivers.Driver, source sources.Source, options ...EngineOption) 
 	}
 
 	if impl, ok := driver.(drivers.Lockable); ok && engine.config.LockKey != "" {
-		var mx drivers.Mutex
+		var mx sync.Locker
 		var err error
 		switch impl.DriverName() {
 		case "mysql":

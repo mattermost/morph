@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -11,17 +12,17 @@ const (
 	// MutexTableName is the name being used for the mutex table
 	MutexTableName = "db_lock"
 
-	// MinWaitInterval is the minimum amount of time to wait between locking attempts
-	MinWaitInterval = 1 * time.Second
+	// minWaitInterval is the minimum amount of time to wait between locking attempts
+	minWaitInterval = 1 * time.Second
 
-	// MaxWaitInterval is the maximum amount of time to wait between locking attempts
-	MaxWaitInterval = 5 * time.Minute
+	// maxWaitInterval is the maximum amount of time to wait between locking attempts
+	maxWaitInterval = 5 * time.Minute
 
-	// PollWaitInterval is the usual time to wait between unsuccessful locking attempts
-	PollWaitInterval = 1 * time.Second
+	// pollWaitInterval is the usual time to wait between unsuccessful locking attempts
+	pollWaitInterval = 1 * time.Second
 
-	// JitterWaitInterval is the amount of jitter to add when waiting to avoid thundering herds
-	JitterWaitInterval = MinWaitInterval / 2
+	// jitterWaitInterval is the amount of jitter to add when waiting to avoid thundering herds
+	jitterWaitInterval = minWaitInterval / 2
 
 	// TTL is the interval after which a locked mutex will expire unless refreshed
 	TTL = time.Second * 15
@@ -44,28 +45,27 @@ func NextWaitInterval(lastWaitInterval time.Duration, err error) time.Duration {
 	nextWaitInterval := lastWaitInterval
 
 	if nextWaitInterval <= 0 {
-		nextWaitInterval = MinWaitInterval
+		nextWaitInterval = minWaitInterval
 	}
 
 	if err != nil {
 		nextWaitInterval *= 2
-		if nextWaitInterval > MaxWaitInterval {
-			nextWaitInterval = MaxWaitInterval
+		if nextWaitInterval > maxWaitInterval {
+			nextWaitInterval = maxWaitInterval
 		}
 	} else {
-		nextWaitInterval = PollWaitInterval
+		nextWaitInterval = pollWaitInterval
 	}
 
 	// Add some jitter to avoid unnecessary collision between competing other instances.
-	nextWaitInterval += time.Duration(rand.Int63n(int64(JitterWaitInterval)) - int64(JitterWaitInterval)/2)
+	nextWaitInterval += time.Duration(rand.Int63n(int64(jitterWaitInterval)) - int64(jitterWaitInterval)/2)
 
 	return nextWaitInterval
 }
 
-type Mutex interface {
-	Lock()
+type Locker interface {
+	sync.Locker
 	LockWithContext(ctx context.Context) error
-	Unlock()
 }
 
 type Lockable interface {
