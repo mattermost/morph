@@ -21,7 +21,7 @@ func ExtractCustomParams(conn string, params []string) (map[string]string, error
 }
 
 func RemoveParamsFromURL(conn string, params []string) (string, error) {
-	prefixCorrection := regexp.MustCompile("\\?&+")
+	prefixCorrection := regexp.MustCompile(`\?&+`)
 	repeatedAmber := regexp.MustCompile("&+")
 
 	for _, param := range params {

@@ -105,6 +105,10 @@ func (driver *mysql) Ping() error {
 	return driver.conn.PingContext(ctx)
 }
 
+func (mysql) DriverName() string {
+	return driverName
+}
+
 func (driver *mysql) Close() error {
 	if driver.conn != nil {
 		if err := driver.conn.Close(); err != nil {

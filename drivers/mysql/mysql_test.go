@@ -72,7 +72,8 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 
 func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
 	connectedDriver, err := Open(connURL)
-	suite.Assert().NoError(err, "should not error when connecting to database from url")
+	suite.Require().NoError(err, "should not error when connecting to database from url")
+	suite.Require().NotNil(connectedDriver)
 
 	return connectedDriver, func() {
 		err = connectedDriver.Close()
