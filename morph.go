@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-morph/morph/models"
@@ -14,15 +15,12 @@ import (
 	"github.com/go-morph/morph/drivers"
 	"github.com/go-morph/morph/sources"
 
-	_ "github.com/go-morph/morph/drivers/mysql"
-	_ "github.com/go-morph/morph/drivers/postgres"
+	ms "github.com/go-morph/morph/drivers/mysql"
+	ps "github.com/go-morph/morph/drivers/postgres"
 
 	_ "github.com/go-morph/morph/sources/file"
 	_ "github.com/go-morph/morph/sources/go_bindata"
 )
-
-// DefaultLockTimeout sets the max time a database driver has to acquire a lock.
-var DefaultLockTimeout = 15 * time.Second
 
 var migrationProgressStart = "==  %s: migrating  ================================================="
 var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
@@ -33,18 +31,19 @@ type Morph struct {
 	config *Config
 	driver drivers.Driver
 	source sources.Source
+	mutex  sync.Locker
 }
 
 type Config struct {
 	Logger      Logger
 	LockTimeout time.Duration
+	LockKey     string
 }
 
 type EngineOption func(*Morph)
 
 var defaultConfig = &Config{
-	LockTimeout: DefaultLockTimeout,
-	Logger:      log.New(os.Stderr, "", log.LstdFlags), // add default logger
+	Logger: log.New(os.Stderr, "", log.LstdFlags), // add default logger
 }
 
 func WithLogger(logger *log.Logger) EngineOption {
@@ -71,7 +70,15 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-// New creates a new instance of the migrations engine from an existing db instance and a migrations source
+// WithLockKey creates a lock table in the database so that the migrations are
+// guaranteed to be executed from a single instance.
+func WithLockKey(key string) EngineOption {
+	return func(m *Morph) {
+		m.config.LockKey = key
+	}
+}
+
+// New creates a new instance of the migrations engine from an existing db instance and a migrations source.
 func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: defaultConfig,
@@ -87,11 +94,32 @@ func New(driver drivers.Driver, source sources.Source, options ...EngineOption) 
 		return nil, err
 	}
 
+	if impl, ok := driver.(drivers.Lockable); ok && engine.config.LockKey != "" {
+		var mx sync.Locker
+		var err error
+		switch impl.DriverName() {
+		case "mysql":
+			mx, err = ms.NewMutex(engine.config.LockKey, driver)
+		case "postgres":
+			mx, err = ps.NewMutex(engine.config.LockKey, driver)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		engine.mutex = mx
+		mx.Lock()
+	}
+
 	return engine, nil
 }
 
 // Close closes the underlying database connection of the engine.
 func (m *Morph) Close() error {
+	if m.mutex != nil {
+		m.mutex.Unlock()
+	}
+
 	return m.driver.Close()
 }
 
@@ -166,6 +194,9 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 
 	sortedMigrations := reverseSortMigrations(appliedMigrations)
 	downMigrations, err := findDownScripts(sortedMigrations, m.source.Migrations())
+	if err != nil {
+		return -1, err
+	}
 
 	steps := limit
 	if len(sortedMigrations) < steps {

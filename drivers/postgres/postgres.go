@@ -193,6 +193,10 @@ func (pg *postgres) createSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
+func (postgres) DriverName() string {
+	return driverName
+}
+
 func (pg *postgres) Close() error {
 	if pg.conn != nil {
 		if err := pg.conn.Close(); err != nil {

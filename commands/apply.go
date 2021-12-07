@@ -13,16 +13,17 @@ func ApplyCmd() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringP("driver", "d", "", "the database driver of the migrations")
-	cmd.MarkPersistentFlagRequired("driver")
+	_ = cmd.MarkPersistentFlagRequired("driver")
 	cmd.PersistentFlags().String("dsn", "", "the dsn of the database")
-	cmd.MarkPersistentFlagRequired("dsn")
+	_ = cmd.MarkPersistentFlagRequired("dsn")
 
 	cmd.PersistentFlags().StringP("source", "s", "file", "the source of the migrations")
 	cmd.PersistentFlags().StringP("path", "p", "", "the source path of the migrations")
-	cmd.MarkPersistentFlagRequired("path")
+	_ = cmd.MarkPersistentFlagRequired("path")
 
 	cmd.PersistentFlags().IntP("timeout", "t", 60, "the timeout in seconds for each migration file to run")
 	cmd.PersistentFlags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
+	cmd.PersistentFlags().StringP("lock-key", "l", "mutex_migrations", "the name of the mutex key")
 
 	cmd.AddCommand(
 		UpApplyCmd(),
@@ -75,9 +76,10 @@ func upApplyCmdF(cmd *cobra.Command, _ []string) error {
 	steps, _ := cmd.Flags().GetInt("number")
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
+	mutexKey, _ := cmd.Flags().GetString("lock-key")
 
 	morph.InfoLogger.Printf("Attempting to apply %d migrations...\n", steps)
-	n, err := apply.Up(steps, dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout))
+	n, err := apply.Up(steps, dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout), morph.WithLockKey(mutexKey))
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
 	} else if n == 0 {
@@ -94,9 +96,10 @@ func downApplyCmdF(cmd *cobra.Command, _ []string) error {
 	steps, _ := cmd.Flags().GetInt("number")
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
+	mutexKey, _ := cmd.Flags().GetString("lock-key")
 
 	morph.InfoLogger.Printf("Attempting to apply  %d migrations...\n", steps)
-	n, err := apply.Down(steps, dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout))
+	n, err := apply.Down(steps, dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout), morph.WithLockKey(mutexKey))
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
 	} else if n == 0 {
@@ -112,9 +115,10 @@ func migrateApplyCmdF(cmd *cobra.Command, _ []string) error {
 	path, _ := cmd.Flags().GetString("path")
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
+	mutexKey, _ := cmd.Flags().GetString("lock-key")
 
 	morph.InfoLogger.Println("Applying all pending migrations...")
-	if err := apply.Migrate(dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout)); err != nil {
+	if err := apply.Migrate(dsn, source, driverName, path, morph.SetMigrationTableName(tableName), morph.SetSatementTimeoutInSeconds(timeout), morph.WithLockKey(mutexKey)); err != nil {
 		return err
 	}
 	morph.SuccessLogger.Println("Pending migrations applied.")
