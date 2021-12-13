@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-morph/morph"
@@ -10,8 +11,8 @@ import (
 	"github.com/go-morph/morph/sources"
 )
 
-func Migrate(dsn, source, driverName, path string, options ...morph.EngineOption) error {
-	engine, err := initializeEngine(dsn, source, driverName, path, options...)
+func Migrate(ctx context.Context, dsn, source, driverName, path string, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
 	if err != nil {
 		return err
 	}
@@ -20,8 +21,8 @@ func Migrate(dsn, source, driverName, path string, options ...morph.EngineOption
 	return engine.ApplyAll()
 }
 
-func Up(limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(dsn, source, driverName, path, options...)
+func Up(ctx context.Context, limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -30,8 +31,8 @@ func Up(limit int, dsn, source, driverName, path string, options ...morph.Engine
 	return engine.Apply(limit)
 }
 
-func Down(limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(dsn, source, driverName, path, options...)
+func Down(ctx context.Context, limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -40,7 +41,7 @@ func Down(limit int, dsn, source, driverName, path string, options ...morph.Engi
 	return engine.ApplyDown(limit)
 }
 
-func initializeEngine(dsn, source, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {
+func initializeEngine(ctx context.Context, dsn, source, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {
 	src, err := sources.Open(source, path)
 	if err != nil {
 		return nil, err
@@ -60,9 +61,7 @@ func initializeEngine(dsn, source, driverName, path string, options ...morph.Eng
 		return nil, err
 	}
 
-	options = append(options, morph.WithLockKey("mutex_migration"))
-
-	engine, err := morph.New(driver, src, options...)
+	engine, err := morph.New(ctx, driver, src, options...)
 	if err != nil {
 		return nil, err
 	}

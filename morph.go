@@ -1,13 +1,13 @@
 package morph
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-morph/morph/models"
@@ -31,7 +31,7 @@ type Morph struct {
 	config *Config
 	driver drivers.Driver
 	source sources.Source
-	mutex  sync.Locker
+	mutex  drivers.Locker
 }
 
 type Config struct {
@@ -70,16 +70,17 @@ func SetSatementTimeoutInSeconds(n int) EngineOption {
 	}
 }
 
-// WithLockKey creates a lock table in the database so that the migrations are
-// guaranteed to be executed from a single instance.
-func WithLockKey(key string) EngineOption {
+// WithLock creates a lock table in the database so that the migrations are
+// guaranteed to be executed from a single instance. The key is used for naming
+// the mutex.
+func WithLock(key string) EngineOption {
 	return func(m *Morph) {
 		m.config.LockKey = key
 	}
 }
 
 // New creates a new instance of the migrations engine from an existing db instance and a migrations source.
-func New(driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
+func New(ctx context.Context, driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: defaultConfig,
 		source: source,
@@ -95,7 +96,7 @@ func New(driver drivers.Driver, source sources.Source, options ...EngineOption) 
 	}
 
 	if impl, ok := driver.(drivers.Lockable); ok && engine.config.LockKey != "" {
-		var mx sync.Locker
+		var mx drivers.Locker
 		var err error
 		switch impl.DriverName() {
 		case "mysql":
@@ -108,7 +109,7 @@ func New(driver drivers.Driver, source sources.Source, options ...EngineOption) 
 		}
 
 		engine.mutex = mx
-		mx.Lock()
+		_ = mx.LockWithContext(ctx)
 	}
 
 	return engine, nil
