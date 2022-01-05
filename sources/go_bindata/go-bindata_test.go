@@ -1,5 +1,5 @@
-// +build sources
-// +build !drivers
+//go:build sources && !drivers
+// +build sources,!drivers
 
 package bindata
 

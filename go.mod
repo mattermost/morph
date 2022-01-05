@@ -10,5 +10,5 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.3.0
-	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181 // indirect
+	modernc.org/sqlite v1.14.3
 )
