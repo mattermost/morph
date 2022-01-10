@@ -130,7 +130,7 @@ func (m *Morph) ApplyAll() error {
 	return err
 }
 
-// Applies limited number of migrations
+// Applies limited number of migrations upwards.
 func (m *Morph) Apply(limit int) (int, error) {
 	appliedMigrations, err := m.driver.AppliedMigrations()
 	if err != nil {
@@ -142,9 +142,14 @@ func (m *Morph) Apply(limit int) (int, error) {
 		return -1, err
 	}
 
-	migrations, rollbacks, err := findUpScripts(sortMigrations(pendingMigrations))
-	if err != nil {
-		return -1, err
+	migrations := make([]*models.Migration, 0)
+	sortedMigrations := sortMigrations(pendingMigrations)
+
+	for _, migration := range sortedMigrations {
+		if migration.Direction != models.Up {
+			continue
+		}
+		migrations = append(migrations, migration)
 	}
 
 	steps := limit
@@ -162,18 +167,6 @@ func (m *Morph) Apply(limit int) (int, error) {
 		migrationName := migrations[i].Name
 		m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName))))
 		if err := m.driver.Apply(migrations[i], true); err != nil {
-			rollback, ok := rollbacks[migrationName]
-			if ok {
-				m.config.Logger.Println(ErrorLoggerLight.Sprint(formatProgress(fmt.Sprintf("failed to apply %s, rolling back.", migrationName))))
-				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("trying to apply %s (%s)", rollback.Name, rollback.Direction))))
-
-				if err2 := m.driver.Apply(rollback, false); err2 != nil {
-					return applied, fmt.Errorf("could not rollback the migration %s: %w", migrationName, err)
-				}
-				m.config.Logger.Println(InfoLoggerLight.Sprint(formatProgress(fmt.Sprintf("rollback completed for %s. Aborting gracefully.", migrationName))))
-				return applied, err
-			}
-
 			return applied, err
 		}
 
@@ -260,27 +253,6 @@ func computePendingMigrations(appliedMigrations []*models.Migration, sourceMigra
 	}
 
 	return pendingMigrations, nil
-}
-
-func findUpScripts(migrations []*models.Migration) ([]*models.Migration, map[string]*models.Migration, error) {
-	rollbackMigrations := make(map[string]*models.Migration)
-	toBeAppliedMigrations := make([]*models.Migration, 0)
-	for _, migration := range migrations {
-		if migration.Direction != models.Up {
-			rollbackMigrations[migration.Name] = migration
-			continue
-		}
-		toBeAppliedMigrations = append(toBeAppliedMigrations, migration)
-	}
-
-	for _, migration := range toBeAppliedMigrations {
-		_, ok := rollbackMigrations[migration.Name]
-		if !ok {
-			return nil, nil, fmt.Errorf("the rollback migration file for %s is missing", migration.RawName)
-		}
-	}
-
-	return toBeAppliedMigrations, rollbackMigrations, nil
 }
 
 func findDownScripts(appliedMigrations []*models.Migration, sourceMigrations []*models.Migration) (map[string]*models.Migration, error) {
