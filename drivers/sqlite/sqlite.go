@@ -5,7 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -58,20 +60,26 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 	return &sqlite{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
-func Open(connURL string) (drivers.Driver, error) {
-	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
+func Open(filePath string) (drivers.Driver, error) {
+	customParams, err := drivers.ExtractCustomParams(filePath, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
 	}
 
-	sanitizedConnURL, err := drivers.RemoveParamsFromURL(connURL, configParams)
+	sanitizedConnURL, err := drivers.RemoveParamsFromURL(filePath, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to sanitize url from custom parameters"}
 	}
 
+	sanitizedConnURL = strings.TrimSuffix(sanitizedConnURL, "?")
+
 	driverConfig, err := mergeConfigWithParams(customParams, defaultConfig)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to merge custom params to driver config"}
+	}
+
+	if _, err := os.Stat(sanitizedConnURL); errors.Is(err, os.ErrNotExist) {
+		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to open db file"}
 	}
 
 	db, err := sql.Open(driverName, sanitizedConnURL)
@@ -84,11 +92,7 @@ func Open(connURL string) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	// TODO: extract database name from dsn/url
-	// if driverConfig.databaseName, err = extractDatabaseNameFromURL(sanitizedConnURL); err != nil {
-	// 	return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to extract database name from connection url"}
-	// }
-
+	driverConfig.databaseName = extractDatabaseNameFromURL(sanitizedConnURL)
 	driverConfig.closeDBonClose = true
 
 	return &sqlite{
@@ -140,62 +144,10 @@ func (driver *sqlite) Close() error {
 }
 
 func (driver *sqlite) Lock() error {
-	aid, err := drivers.GenerateAdvisoryLockID(driver.config.databaseName, driver.config.MigrationsTable)
-	if err != nil {
-		return err
-	}
-
-	// This will wait until the lock can be acquired or until the statement timeout has reached.
-	// TODO: add lock query
-	query := ""
-	var success bool
-	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
-	defer cancel()
-
-	if err := driver.conn.QueryRowContext(ctx, query, aid).Scan(&success); err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to obtain advisory lock due to error",
-			Command: "lock_migrations_table",
-			Query:   []byte(query),
-		}
-	}
-
-	if !success {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to obtain advisory lock, potentially due to timeout",
-			Command: "lock_migrations_table",
-			Query:   []byte(query),
-		}
-	}
-
 	return nil
 }
 
 func (driver *sqlite) Unlock() error {
-	aid, err := drivers.GenerateAdvisoryLockID(driver.config.databaseName, driver.config.MigrationsTable)
-	if err != nil {
-		return err
-	}
-
-	// TODO: add release lock query
-	query := ""
-	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
-	defer cancel()
-
-	if _, err := driver.conn.ExecContext(ctx, query, aid); err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to unlock advisory lock",
-			Command: "unlock_migrations_table",
-			Query:   []byte(query),
-		}
-	}
-
 	return nil
 }
 
@@ -203,8 +155,7 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
-	// TODO: create schema table query
-	createTableIfNotExistsQuery := ""
+	createTableIfNotExistsQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (Version bigint not null primary key, Name varchar not null)", driver.config.MigrationsTable)
 	if _, err = driver.conn.ExecContext(ctx, createTableIfNotExistsQuery); err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
@@ -219,17 +170,6 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 }
 
 func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err error) {
-	if err = driver.Lock(); err != nil {
-		return err
-	}
-	defer func() {
-		// If we saw no error prior to unlocking and unlocking returns an error we need to
-		// assign the unlocking error to err
-		if unlockErr := driver.Unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
 	query, readErr := migration.Query()
 	if readErr != nil {
 		return &drivers.AppError{
@@ -282,23 +222,11 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 		}
 	}
 
-	if err = driver.Lock(); err != nil {
-		return nil, err
-	}
-	defer func() {
-		// If we saw no error prior to unlocking and unlocking returns an error we need to
-		// assign the unlocking error to err
-		if unlockErr := driver.Unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
 	if err := driver.createSchemaTableIfNotExists(); err != nil {
 		return nil, err
 	}
 
-	// TODO: add select applied migrations query
-	query := ""
+	query := fmt.Sprintf("SELECT version, name FROM %s", driver.config.MigrationsTable)
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 	var appliedMigrations []*models.Migration
@@ -337,7 +265,7 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 }
 
 func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
-	query := "SELECT DATABASE()"
+	query := "SELECT db_name()"
 
 	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
 	defer cancel()
