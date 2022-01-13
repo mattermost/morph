@@ -95,11 +95,20 @@ func (suite *MysqlTestSuite) TestOpen() {
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
-		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+		connectedDriver, teardown := suite.InitializeDriver(defaultConnURL)
 		defer teardown()
 
+		defaultConfig := getDefaultConfig()
+		cfg := &Config{
+			Config: drivers.Config{
+				MigrationsTable:        defaultConfig.MigrationsTable,
+				StatementTimeoutInSecs: defaultConfig.StatementTimeoutInSecs,
+				MigrationMaxSize:       defaultConfig.MigrationMaxSize,
+			},
+			closeDBonClose: true, // we have created DB from DSN
+		}
 		mysqlDriver := connectedDriver.(*mysql)
-		suite.Assert().EqualValues(defaultConfig, mysqlDriver.config)
+		suite.Assert().EqualValues(cfg, mysqlDriver.config)
 	})
 
 	suite.T().Run("when connURL is valid can override migrations table", func(t *testing.T) {
@@ -136,6 +145,8 @@ func (suite *MysqlTestSuite) TestOpen() {
 }
 
 func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
+	defaultConfig := getDefaultConfig()
+
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
 		driver := &mysql{}
 
@@ -186,6 +197,8 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 }
 
 func (suite *MysqlTestSuite) TestLock() {
+	defaultConfig := getDefaultConfig()
+
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
@@ -203,6 +216,8 @@ func (suite *MysqlTestSuite) TestLock() {
 }
 
 func (suite *MysqlTestSuite) TestUnlock() {
+	defaultConfig := getDefaultConfig()
+
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
@@ -222,6 +237,8 @@ func (suite *MysqlTestSuite) TestUnlock() {
 }
 
 func (suite *MysqlTestSuite) TestAppliedMigrations() {
+	defaultConfig := getDefaultConfig()
+
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
@@ -244,6 +261,8 @@ func (suite *MysqlTestSuite) TestAppliedMigrations() {
 }
 
 func (suite *MysqlTestSuite) TestApply() {
+	defaultConfig := getDefaultConfig()
+
 	testData := []struct {
 		Scenario                  string
 		PendingMigrations         []*models.Migration
