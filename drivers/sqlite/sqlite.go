@@ -18,13 +18,6 @@ import (
 
 const driverName = "sqlite"
 const defaultMigrationMaxSize = 10 * 1 << 20 // 10 MB
-var defaultConfig = &Config{
-	Config: drivers.Config{
-		MigrationsTable:        "db_migrations",
-		StatementTimeoutInSecs: 60,
-		MigrationMaxSize:       defaultMigrationMaxSize,
-	},
-}
 
 // add here any custom driver configuration
 var configParams = []string{
@@ -35,7 +28,6 @@ var configParams = []string{
 
 type Config struct {
 	drivers.Config
-	databaseName   string
 	closeDBonClose bool
 }
 
@@ -46,15 +38,11 @@ type sqlite struct {
 }
 
 func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
-	driverConfig := mergeConfigs(config, defaultConfig)
+	driverConfig := mergeConfigs(config, getDefaultConfig())
 
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
-	}
-
-	if driverConfig.databaseName, err = currentDatabaseNameFromDB(conn, driverConfig); err != nil {
-		return nil, err
 	}
 
 	return &sqlite{config: driverConfig, conn: conn, db: dbInstance}, nil
@@ -73,7 +61,7 @@ func Open(filePath string) (drivers.Driver, error) {
 
 	sanitizedConnURL = strings.TrimSuffix(sanitizedConnURL, "?")
 
-	driverConfig, err := mergeConfigWithParams(customParams, defaultConfig)
+	driverConfig, err := mergeConfigWithParams(customParams, getDefaultConfig())
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to merge custom params to driver config"}
 	}
@@ -92,7 +80,6 @@ func Open(filePath string) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	driverConfig.databaseName = extractDatabaseNameFromURL(sanitizedConnURL)
 	driverConfig.closeDBonClose = true
 
 	return &sqlite{
@@ -262,26 +249,6 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 	}
 
 	return appliedMigrations, nil
-}
-
-func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
-	query := "SELECT db_name()"
-
-	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
-	defer cancel()
-
-	var databaseName string
-	if err := conn.QueryRowContext(ctx, query).Scan(&databaseName); err != nil {
-		return "", &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "failed to fetch database name",
-			Command: "current_database",
-			Query:   []byte(query),
-		}
-	}
-
-	return databaseName, nil
 }
 
 func mergeConfigs(config *Config, defaultConfig *Config) *Config {

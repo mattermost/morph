@@ -103,6 +103,8 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 			mx, err = ms.NewMutex(engine.config.LockKey, driver)
 		case "postgres":
 			mx, err = ps.NewMutex(engine.config.LockKey, driver)
+		default:
+			err = errors.New("driver does not support locking")
 		}
 		if err != nil {
 			return nil, err

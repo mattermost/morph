@@ -1,13 +1,13 @@
 package sqlite
 
-import (
-	"path/filepath"
-	"strings"
-)
+import "github.com/go-morph/morph/drivers"
 
-func extractDatabaseNameFromURL(conn string) string {
-	file := filepath.Base(conn)
-	file = strings.SplitAfter(file, ".")[0]
-
-	return file
+func getDefaultConfig() *Config {
+	return &Config{
+		Config: drivers.Config{
+			MigrationsTable:        "db_migrations",
+			StatementTimeoutInSecs: 60,
+			MigrationMaxSize:       defaultMigrationMaxSize,
+		},
+	}
 }

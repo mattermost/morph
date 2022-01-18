@@ -1,6 +1,3 @@
-//go:build !sources && drivers
-// +build !sources,drivers
-
 package sqlite
 
 import (
@@ -75,8 +72,11 @@ func (suite *SqliteTestSuite) TestOpen() {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 		defer teardown()
 
+		cfg := getDefaultConfig()
+		cfg.closeDBonClose = true // since we open the driver via DSN, we set closeDBonClose to true
+
 		sqliteDriver := connectedDriver.(*sqlite)
-		suite.Assert().EqualValues(defaultConfig, sqliteDriver.config)
+		suite.Assert().EqualValues(cfg, sqliteDriver.config)
 	})
 
 }
@@ -89,6 +89,8 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 		suite.Assert().Error(err, "should error when database connection is missing")
 		suite.Assert().EqualError(err, "driver: sqlite, message: database connection is missing, originalError: driver has no connection established ")
 	})
+
+	defaultConfig := getDefaultConfig()
 
 	suite.T().Run("when x-migrations-table is missing, it creates a migrations table if not exists based on the default configuration", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
@@ -145,6 +147,8 @@ func (suite *SqliteTestSuite) TestAppliedMigrations() {
 	_, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
+	defaultConfig := getDefaultConfig()
+
 	insertMigrationsQuery := fmt.Sprintf(`
 		INSERT INTO %s(Version, Name)
 		VALUES
@@ -160,6 +164,8 @@ func (suite *SqliteTestSuite) TestAppliedMigrations() {
 }
 
 func (suite *SqliteTestSuite) TestApply() {
+	defaultConfig := getDefaultConfig()
+
 	testData := []struct {
 		Scenario                  string
 		PendingMigrations         []*models.Migration
@@ -317,8 +323,6 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
-
-	suite.Assert().Equal(databaseName, config.databaseName)
 }
 
 func TestSqliteTestSuite(t *testing.T) {
