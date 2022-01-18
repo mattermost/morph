@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -17,9 +18,8 @@ import (
 )
 
 var (
-	databaseName   = "morph_test"
-	testConnURL    = ""
-	defaultConnURL = ""
+	testConnURL    = "morph-test.db"
+	defaultConnURL = "morph-default.db"
 )
 
 type SqliteTestSuite struct {
@@ -65,7 +65,12 @@ func (suite *SqliteTestSuite) TestOpen() {
 		_, err := Open("something invalid")
 
 		suite.Assert().Error(err, "should error when connecting to database from url")
-		suite.Assert().EqualError(err, "driver: sqlite, message: failed to open db file, originalError: stat something invalid: no such file or directory ")
+		switch osname := runtime.GOOS; osname {
+		case "windows":
+			suite.Assert().EqualError(err, "driver: sqlite, message: failed to open db file, originalError: CreateFile something invalid: The system cannot find the file specified. ")
+		default:
+			suite.Assert().EqualError(err, "driver: sqlite, message: failed to open db file, originalError: stat something invalid: no such file or directory ")
+		}
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
