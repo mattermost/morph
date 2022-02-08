@@ -42,6 +42,10 @@ func (suite *SqliteTestSuite) BeforeTest(_, _ string) {
 }
 
 func (suite *SqliteTestSuite) AfterTest(_, _ string) {
+	if suite.db != nil {
+		err := suite.db.Close()
+		suite.Require().NoError(err, "should not error when closing the test database connection")
+	}
 }
 
 func (suite *SqliteTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {

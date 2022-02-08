@@ -188,31 +188,34 @@ func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err 
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
-	if _, err := driver.conn.ExecContext(ctx, query); err != nil {
+	transaction, err := driver.conn.BeginTx(ctx, nil)
+	if err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
-			Message: "failed when applying migration",
-			Command: "apply_migration",
-			Query:   []byte(query),
+			Message: "error while opening a transaction to the database",
+			Command: "begin_transaction",
 		}
 	}
 
-	updateVersionContext, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
-	defer cancel()
-
-	if !saveVersion {
-		return nil
+	if err = execTransaction(transaction, query); err != nil {
+		return err
 	}
 
-	updateVersionQuery := driver.addMigrationQuery(migration)
-	if _, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery); err != nil {
+	if saveVersion {
+		updateVersionQuery := driver.addMigrationQuery(migration)
+		if err = execTransaction(transaction, updateVersionQuery); err != nil {
+			return err
+		}
+	}
+
+	err = transaction.Commit()
+	if err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
-			Message: "failed when updating migrations table with the new version",
-			Command: "update_version",
-			Query:   []byte(updateVersionQuery),
+			Message: "error while committing a transaction to the database",
+			Command: "commit_transaction",
 		}
 	}
 
@@ -342,4 +345,28 @@ func (driver *sqlite) SetConfig(key string, value interface{}) error {
 	}
 
 	return fmt.Errorf("incorrect key name %q", key)
+}
+
+func execTransaction(transaction *sql.Tx, query string) error {
+	if _, err := transaction.Exec(query); err != nil {
+		if txErr := transaction.Rollback(); txErr != nil {
+			err = errors.Wrap(errors.New(err.Error()+txErr.Error()), "failed to execute query in migration transaction")
+
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Command: "rollback_transaction",
+			}
+		}
+
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed when applying migration",
+			Command: "apply_migration",
+			Query:   []byte(query),
+		}
+	}
+
+	return nil
 }
