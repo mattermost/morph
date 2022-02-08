@@ -144,7 +144,7 @@ func (suite *SqliteTestSuite) TestLock() {
 
 	err := connectedDriver.Lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
-	defer connectedDriver.Unlock()
+	defer func() { suite.Require().NoError(connectedDriver.Unlock()) }()
 
 	err = connectedDriver.Lock()
 	suite.Require().Error(err, "should error when attempting to acquire a lock if driver is locked")
