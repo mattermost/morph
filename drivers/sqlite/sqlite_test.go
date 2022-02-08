@@ -139,11 +139,29 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 }
 
 func (suite *SqliteTestSuite) TestLock() {
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
+	err := connectedDriver.Lock()
+	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
+	defer connectedDriver.Unlock()
+
+	err = connectedDriver.Lock()
+	suite.Require().Error(err, "should error when attempting to acquire a lock if driver is locked")
 }
 
 func (suite *SqliteTestSuite) TestUnlock() {
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
 
+	err := connectedDriver.Lock()
+	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
+
+	err = connectedDriver.Unlock()
+	suite.Require().NoError(err, "should not error when attempting to release a lock")
+
+	err = connectedDriver.Unlock()
+	suite.Require().NoError(err, "should not error when attempting to release an unlocked driver")
 }
 
 func (suite *SqliteTestSuite) TestAppliedMigrations() {

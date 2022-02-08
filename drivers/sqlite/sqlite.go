@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 
@@ -35,6 +36,8 @@ type sqlite struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *Config
+
+	lockedFlag int32 // indicates that the driver is locked or not
 }
 
 func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
@@ -131,10 +134,21 @@ func (driver *sqlite) Close() error {
 }
 
 func (driver *sqlite) Lock() error {
+	if !atomic.CompareAndSwapInt32(&driver.lockedFlag, 0, 1) {
+		return &drivers.DatabaseError{
+			OrigErr: errors.New("already locked"),
+			Driver:  driverName,
+			Message: "failed to obtain lock",
+			Command: "lock_driver",
+		}
+	}
+
 	return nil
 }
 
 func (driver *sqlite) Unlock() error {
+	atomic.StoreInt32(&driver.lockedFlag, 0)
+
 	return nil
 }
 
@@ -157,6 +171,11 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 }
 
 func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err error) {
+	if err = driver.Lock(); err != nil {
+		return err
+	}
+	defer driver.Unlock()
+
 	query, readErr := migration.Query()
 	if readErr != nil {
 		return &drivers.AppError{
@@ -208,6 +227,11 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 			Driver:  driverName,
 		}
 	}
+
+	if err = driver.Lock(); err != nil {
+		return nil, err
+	}
+	defer driver.Unlock()
 
 	if err := driver.createSchemaTableIfNotExists(); err != nil {
 		return nil, err
