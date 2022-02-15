@@ -173,7 +173,9 @@ func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err 
 	if err = driver.Lock(); err != nil {
 		return err
 	}
-	defer driver.Unlock()
+	defer func() {
+		_ = driver.Unlock()
+	}()
 
 	query, readErr := migration.Query()
 	if readErr != nil {
@@ -233,7 +235,9 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 	if err = driver.Lock(); err != nil {
 		return nil, err
 	}
-	defer driver.Unlock()
+	defer func() {
+		_ = driver.Unlock()
+	}()
 
 	if err := driver.createSchemaTableIfNotExists(); err != nil {
 		return nil, err
