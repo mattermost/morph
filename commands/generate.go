@@ -35,7 +35,7 @@ func GenerateCmd() *cobra.Command {
 func generateCmdF(cmd *cobra.Command, args []string) {
 	dir, _ := cmd.Flags().GetString("dir")
 	driver, _ := cmd.Flags().GetString("driver")
-	extention := getExtension(driver)
+	extension := getExtension(driver)
 	fileName := args[0]
 
 	if ts, _ := cmd.Flags().GetBool("timestamp"); ts {
@@ -57,7 +57,7 @@ func generateCmdF(cmd *cobra.Command, args []string) {
 			fileName = strings.Join([]string{date.Format(tf), fileName}, "_")
 		}
 	} else if seq, _ := cmd.Flags().GetBool("sequence"); seq {
-		next, err := sequelNumber(dir, extention)
+		next, err := sequelNumber(dir, extension, driver)
 		if err != nil {
 			cmd.PrintErrln(err)
 			return
@@ -80,7 +80,7 @@ func generateCmdF(cmd *cobra.Command, args []string) {
 
 	migrations := []string{"down", "up"}
 	for _, migration := range migrations {
-		filePath := strings.Join([]string{filepath.Join(dir, fileName), migration, extention}, ".")
+		filePath := strings.Join([]string{filepath.Join(dir, fileName), migration, extension}, ".")
 		f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 		if err != nil {
 			cmd.PrintErrln(err)
@@ -90,8 +90,8 @@ func generateCmdF(cmd *cobra.Command, args []string) {
 	}
 }
 
-func sequelNumber(dir, extention string) (int, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, "*"+extention))
+func sequelNumber(dir, extension, driver string) (int, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, driver, "*"+extension))
 	if err != nil {
 		return 0, err
 	}
@@ -119,7 +119,7 @@ func sequelNumber(dir, extention string) (int, error) {
 
 func getExtension(driver string) string {
 	switch driver {
-	case "postgresql", "mysql":
+	case "postgres", "mysql":
 		return "sql"
 	default:
 		return "txt"
