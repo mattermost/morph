@@ -1,6 +1,6 @@
 package sqlite
 
-import "github.com/go-morph/morph/drivers"
+import "github.com/mattermost/morph/drivers"
 
 func getDefaultConfig() *Config {
 	return &Config{

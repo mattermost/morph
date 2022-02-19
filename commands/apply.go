@@ -3,8 +3,8 @@ package commands
 import (
 	"context"
 
-	"github.com/go-morph/morph"
-	"github.com/go-morph/morph/apply"
+	"github.com/mattermost/morph"
+	"github.com/mattermost/morph/apply"
 	"github.com/spf13/cobra"
 )
 

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-morph/morph/drivers"
-	"github.com/go-morph/morph/models"
+	"github.com/mattermost/morph/drivers"
+	"github.com/mattermost/morph/models"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

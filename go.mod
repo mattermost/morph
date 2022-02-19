@@ -1,4 +1,4 @@
-module github.com/go-morph/morph
+module github.com/mattermost/morph
 
 go 1.16
 

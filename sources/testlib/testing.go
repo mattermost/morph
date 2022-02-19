@@ -1,5 +1,5 @@
-// +build sources
-// +build !drivers
+//go:build sources && !drivers
+// +build sources,!drivers
 
 package testlib
 
@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-morph/morph/models"
-	"github.com/go-morph/morph/sources"
+	"github.com/mattermost/morph/models"
+	"github.com/mattermost/morph/sources"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
