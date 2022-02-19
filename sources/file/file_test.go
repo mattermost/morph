@@ -1,5 +1,5 @@
-// +build sources
-// +build !drivers
+//go:build sources && !drivers
+// +build sources,!drivers
 
 package file
 
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-morph/morph/sources/testlib"
+	"github.com/mattermost/morph/sources/testlib"
 
 	"github.com/stretchr/testify/require"
 )

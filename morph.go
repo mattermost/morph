@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-morph/morph/models"
+	"github.com/mattermost/morph/models"
 
-	"github.com/go-morph/morph/drivers"
-	"github.com/go-morph/morph/sources"
+	"github.com/mattermost/morph/drivers"
+	"github.com/mattermost/morph/sources"
 
-	ms "github.com/go-morph/morph/drivers/mysql"
-	ps "github.com/go-morph/morph/drivers/postgres"
+	ms "github.com/mattermost/morph/drivers/mysql"
+	ps "github.com/mattermost/morph/drivers/postgres"
 
-	_ "github.com/go-morph/morph/sources/file"
-	_ "github.com/go-morph/morph/sources/go_bindata"
+	_ "github.com/mattermost/morph/sources/file"
+	_ "github.com/mattermost/morph/sources/go_bindata"
 )
 
 var migrationProgressStart = "==  %s: migrating  ================================================="

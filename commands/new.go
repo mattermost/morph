@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/go-morph/morph"
+	"github.com/mattermost/morph"
 	"github.com/spf13/cobra"
 
 	. "github.com/dave/jennifer/jen"
@@ -56,8 +56,8 @@ func generateNewDriver(driverName string) error {
 	f := NewFile(driverName)
 
 	f.ImportNames(map[string]string{
-		"github.com/go-morph/morph/drivers": "drivers",
-		"github.com/go-morph/morph/models":  "models",
+		"github.com/mattermost/morph/drivers": "drivers",
+		"github.com/mattermost/morph/models":  "models",
 	})
 
 	f.Var().Add(Id("driverName")).Op("=").Add(Lit(driverName))
@@ -68,7 +68,7 @@ func generateNewDriver(driverName string) error {
 	f.Var().Add(Id("configParams")).Op("=").Add(Index().String().Values())
 
 	f.Func().Id("init").Params().Block(
-		Qual("github.com/go-morph/morph/drivers", "Register").Call(Lit(driverName), Id("&"+driverName).Values()),
+		Qual("github.com/mattermost/morph/drivers", "Register").Call(Lit(driverName), Id("&"+driverName).Values()),
 	)
 
 	f.Line()
@@ -133,13 +133,13 @@ func generateNewDriver(driverName string) error {
 	})
 
 	f.Line()
-	f.Func().Params(Id("driver").Id("*" + driverName)).Id("Apply").Params(Id("migration").Op("*").Qual("github.com/go-morph/morph/models", "Migration")).Error().BlockFunc(func(g *Group) {
+	f.Func().Params(Id("driver").Id("*" + driverName)).Id("Apply").Params(Id("migration").Op("*").Qual("github.com/mattermost/morph/models", "Migration")).Error().BlockFunc(func(g *Group) {
 		g.Comment("Implement the functionality for apply the migration onto the storage.")
 		g.Panic(Lit("implement me"))
 	})
 
 	f.Line()
-	f.Func().Params(Id("driver").Id("*"+driverName)).Id("AppliedMigrations").Params().Params(Op("[]*").Qual("github.com/go-morph/morph/models", "Migration"), Error()).BlockFunc(func(g *Group) {
+	f.Func().Params(Id("driver").Id("*"+driverName)).Id("AppliedMigrations").Params().Params(Op("[]*").Qual("github.com/mattermost/morph/models", "Migration"), Error()).BlockFunc(func(g *Group) {
 		g.Comment("Implement the functionality that returns which migrations has already been applied in storage.")
 		g.Panic(Lit("implement me"))
 	})

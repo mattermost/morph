@@ -1,13 +1,13 @@
-// +build sources
-// +build !drivers
+//go:build sources && !drivers
+// +build sources,!drivers
 
 package bindata
 
 import (
 	"testing"
 
-	"github.com/go-morph/morph/sources/go_bindata/testdata"
-	"github.com/go-morph/morph/sources/testlib"
+	"github.com/mattermost/morph/sources/go_bindata/testdata"
+	"github.com/mattermost/morph/sources/testlib"
 
 	"github.com/stretchr/testify/require"
 )

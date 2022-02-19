@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-morph/morph/commands/testlib"
+	"github.com/mattermost/morph/commands/testlib"
 	"github.com/stretchr/testify/require"
 )
 
