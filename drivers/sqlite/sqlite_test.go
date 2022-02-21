@@ -24,17 +24,11 @@ var (
 
 type SqliteTestSuite struct {
 	suite.Suite
-	db     *sql.DB
 	testDB *sql.DB
 }
 
 func (suite *SqliteTestSuite) BeforeTest(_, _ string) {
 	var err error
-	suite.db, err = sql.Open(driverName, defaultConnURL)
-	suite.Require().NoError(err, "should not error when connecting to the default database")
-
-	suite.Require().NoError(suite.db.Ping())
-
 	suite.testDB, err = sql.Open(driverName, testConnURL)
 	suite.Require().NoError(err, "should not error when connecting to the test database")
 
@@ -42,8 +36,8 @@ func (suite *SqliteTestSuite) BeforeTest(_, _ string) {
 }
 
 func (suite *SqliteTestSuite) AfterTest(_, _ string) {
-	if suite.db != nil {
-		err := suite.db.Close()
+	if suite.testDB != nil {
+		err := suite.testDB.Close()
 		suite.Require().NoError(err, "should not error when closing the test database connection")
 	}
 }
@@ -169,8 +163,9 @@ func (suite *SqliteTestSuite) TestUnlock() {
 }
 
 func (suite *SqliteTestSuite) TestAppliedMigrations() {
-	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	connectedDriver, teardown := suite.InitializeDriver(defaultConnURL)
 	defer teardown()
+
 	_, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
 
@@ -183,7 +178,9 @@ func (suite *SqliteTestSuite) TestAppliedMigrations() {
 			   (3, 'test_3'),
 			   (2, 'test_2');
 	`, defaultConfig.MigrationsTable)
-	_, err = suite.testDB.Exec(insertMigrationsQuery)
+	driver, ok := connectedDriver.(*sqlite)
+	suite.Require().True(ok)
+	_, err = driver.db.Exec(insertMigrationsQuery)
 	suite.Require().NoError(err, "should not error when inserting seed migrations")
 	appliedMigrations, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when fetching applied migrations")

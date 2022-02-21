@@ -37,8 +37,8 @@ type sqlite struct {
 	db     *sql.DB
 	config *Config
 
-	lockedFlag int32 // indicates that the driver is locked or not
-	mx         sync.Mutex
+	lockedFlag int32       // indicates that the driver is locked or not
+	mx         *sync.Mutex // specifically added to prevent a race in the sqlite lib
 }
 
 func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
@@ -49,7 +49,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	return &sqlite{config: driverConfig, conn: conn, db: dbInstance}, nil
+	return &sqlite{config: driverConfig, conn: conn, db: dbInstance, mx: &sync.Mutex{}}, nil
 }
 
 func Open(filePath string) (drivers.Driver, error) {
@@ -90,6 +90,7 @@ func Open(filePath string) (drivers.Driver, error) {
 		conn:   conn,
 		db:     db,
 		config: driverConfig,
+		mx:     &sync.Mutex{},
 	}, nil
 }
 
