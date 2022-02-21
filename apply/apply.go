@@ -8,6 +8,7 @@ import (
 	"github.com/mattermost/morph/drivers"
 	"github.com/mattermost/morph/drivers/mysql"
 	"github.com/mattermost/morph/drivers/postgres"
+	"github.com/mattermost/morph/drivers/sqlite"
 	"github.com/mattermost/morph/sources"
 )
 
@@ -54,6 +55,8 @@ func initializeEngine(ctx context.Context, dsn, source, driverName, path string,
 		driver, err = mysql.Open(dsn)
 	case "postgresql", "postgres":
 		driver, err = postgres.Open(dsn)
+	case "sqlite":
+		driver, err = sqlite.Open(dsn)
 	default:
 		err = fmt.Errorf("unsupported driver %s", driverName)
 	}
