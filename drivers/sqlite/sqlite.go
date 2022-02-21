@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -37,8 +36,7 @@ type sqlite struct {
 	db     *sql.DB
 	config *Config
 
-	lockedFlag int32       // indicates that the driver is locked or not
-	mx         *sync.Mutex // specifically added to prevent a race in the sqlite lib
+	lockedFlag int32 // indicates that the driver is locked or not
 }
 
 func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
@@ -49,7 +47,7 @@ func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	return &sqlite{config: driverConfig, conn: conn, db: dbInstance, mx: &sync.Mutex{}}, nil
+	return &sqlite{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
 func Open(filePath string) (drivers.Driver, error) {
@@ -90,7 +88,6 @@ func Open(filePath string) (drivers.Driver, error) {
 		conn:   conn,
 		db:     db,
 		config: driverConfig,
-		mx:     &sync.Mutex{},
 	}, nil
 }
 
@@ -106,9 +103,6 @@ func (sqlite) DriverName() string {
 }
 
 func (driver *sqlite) Close() error {
-	driver.mx.Lock()
-	defer driver.mx.Unlock()
-
 	if driver.conn != nil {
 		if err := driver.conn.Close(); err != nil {
 			return &drivers.DatabaseError{
@@ -158,9 +152,6 @@ func (driver *sqlite) Unlock() error {
 }
 
 func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
-	driver.mx.Lock()
-	defer driver.mx.Unlock()
-
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -179,9 +170,6 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 }
 
 func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err error) {
-	driver.mx.Lock()
-	defer driver.mx.Unlock()
-
 	if err = driver.Lock(); err != nil {
 		return err
 	}
@@ -254,9 +242,6 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 	if err := driver.createSchemaTableIfNotExists(); err != nil {
 		return nil, err
 	}
-
-	driver.mx.Lock()
-	defer driver.mx.Unlock()
 
 	query := fmt.Sprintf("SELECT version, name FROM %s", driver.config.MigrationsTable)
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
