@@ -24,22 +24,6 @@ var (
 
 type SqliteTestSuite struct {
 	suite.Suite
-	testDB *sql.DB
-}
-
-func (suite *SqliteTestSuite) BeforeTest(_, _ string) {
-	var err error
-	suite.testDB, err = sql.Open(driverName, testConnURL)
-	suite.Require().NoError(err, "should not error when connecting to the test database")
-
-	suite.Require().NoError(suite.testDB.Ping())
-}
-
-func (suite *SqliteTestSuite) AfterTest(_, _ string) {
-	if suite.testDB != nil {
-		err := suite.testDB.Close()
-		suite.Require().NoError(err, "should not error when closing the test database connection")
-	}
 }
 
 func (suite *SqliteTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
@@ -99,7 +83,10 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 		defer teardown()
 
-		_, err := suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
+		driver, ok := connectedDriver.(*sqlite)
+		suite.Require().True(ok)
+
+		_, err := driver.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
 		suite.Require().NoError(err, "should not error while dropping pre-existing migrations table")
 
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM sqlite_master
@@ -110,7 +97,7 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
 		var result int
-		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
+		err = driver.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(1, result, "migrations table should exist")
 	})
@@ -119,18 +106,21 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migrations-table=awesome_migrations")
 		defer teardown()
 
+		driver, ok := connectedDriver.(*sqlite)
+		suite.Require().True(ok)
+
 		migrationTableExists := fmt.Sprintf(`SELECT COUNT(*) FROM sqlite_master
 								WHERE  type = 'table'
 								AND    name = '%s';`, "awesome_migrations")
 		var result int
-		err := suite.testDB.QueryRow(migrationTableExists).Scan(&result)
+		err := driver.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(0, result, "migrations table should not exist")
 
 		_, err = connectedDriver.AppliedMigrations()
 		suite.Require().NoError(err, "should not error when creating the migrations table")
 
-		err = suite.testDB.QueryRow(migrationTableExists).Scan(&result)
+		err = driver.db.QueryRow(migrationTableExists).Scan(&result)
 		suite.Require().NoError(err, "should not error querying table existence")
 		suite.Require().Equal(1, result, "migrations table should exist")
 	})
@@ -290,8 +280,10 @@ func (suite *SqliteTestSuite) TestApply() {
 			connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 			defer teardown()
 
+			driver, ok := connectedDriver.(*sqlite)
+			suite.Require().True(ok)
 			// Clear the migrations table
-			_, err := suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", "db_migrations"))
+			_, err := driver.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", "db_migrations"))
 			suite.Require().NoError(err, "should not error when dropping the test database")
 
 			_, err = connectedDriver.AppliedMigrations()
@@ -303,7 +295,7 @@ func (suite *SqliteTestSuite) TestApply() {
 						VALUES
 							   (%d, '%s');
 					`, defaultConfig.MigrationsTable, appliedMigration.Version, appliedMigration.Name)
-				_, err = suite.testDB.Exec(insertMigrationsQuery)
+				_, err = driver.db.Exec(insertMigrationsQuery)
 				suite.Require().NoError(err, "should not error when inserting seed migrations")
 			}
 
@@ -317,12 +309,12 @@ func (suite *SqliteTestSuite) TestApply() {
 			}
 
 			var migrations int
-			err = suite.testDB.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s;", defaultConfig.MigrationsTable)).Scan(&migrations)
+			err = driver.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s;", defaultConfig.MigrationsTable)).Scan(&migrations)
 			suite.Require().NoError(err, "should not error counting applied migrations")
 
 			suite.Assert().Equal(expectedAppliedMigrations, migrations)
 
-			_, err = suite.testDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
+			_, err = driver.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", defaultConfig.MigrationsTable))
 			suite.Require().NoError(err, "should not error while dropping migrations table")
 		})
 	}
