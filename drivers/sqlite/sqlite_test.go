@@ -153,6 +153,8 @@ func (suite *SqliteTestSuite) TestUnlock() {
 }
 
 func (suite *SqliteTestSuite) TestAppliedMigrations() {
+	suite.T().Skip("MM-41987")
+
 	connectedDriver, teardown := suite.InitializeDriver(defaultConnURL)
 	defer teardown()
 
