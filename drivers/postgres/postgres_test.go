@@ -202,25 +202,6 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 	})
 }
 
-func (suite *PostgresTestSuite) TestUnlock() {
-	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-	defer teardown()
-
-	err := connectedDriver.Lock()
-	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
-
-	advisoryLockID, err := drivers.GenerateAdvisoryLockID("morph_test", "public")
-	suite.Require().NoError(err, "should not error when generating generate advisory lock id")
-
-	err = connectedDriver.Unlock()
-	suite.Require().NoError(err, "should not error when attempting to release an advisory lock")
-
-	var result int
-	err = suite.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM pg_locks WHERE locktype = 'advisory' AND granted = true AND objid = '%s'", advisoryLockID)).Scan(&result)
-	suite.Require().NoError(err, "should not error querying pg_locks")
-	suite.Require().Equal(0, result, "advisory lock should be released")
-}
-
 func (suite *PostgresTestSuite) TestAppliedMigrations() {
 	defaultConfig := getDefaultConfig()
 

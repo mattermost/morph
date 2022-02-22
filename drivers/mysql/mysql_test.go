@@ -196,27 +196,6 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 	})
 }
 
-func (suite *MysqlTestSuite) TestUnlock() {
-	defaultConfig := getDefaultConfig()
-
-	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-	defer teardown()
-
-	err := connectedDriver.Lock()
-	suite.Require().NoError(err, "should not error when attempting to acquire an advisory lock")
-
-	advisoryLockID, err := drivers.GenerateAdvisoryLockID("morph_test", defaultConfig.MigrationsTable)
-	suite.Require().NoError(err, "should not error when generating generate advisory lock id")
-
-	err = connectedDriver.Unlock()
-	suite.Require().NoError(err, "should not error when attempting to release an advisory lock")
-
-	var result int
-	err = suite.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM performance_schema.metadata_locks WHERE OBJECT_TYPE = 'USER LEVEL LOCK' AND LOCK_STATUS = 'GRANTED' AND OBJECT_NAME = '%s'", advisoryLockID)).Scan(&result)
-	suite.Require().NoError(err, "should not error querying performance_schema.metadata_locks")
-	suite.Require().Equal(0, result, "advisory lock should be released")
-}
-
 func (suite *MysqlTestSuite) TestAppliedMigrations() {
 	defaultConfig := getDefaultConfig()
 
