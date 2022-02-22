@@ -130,11 +130,14 @@ func (suite *SqliteTestSuite) TestLock() {
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
-	err := connectedDriver.Lock()
-	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
-	defer func() { suite.Require().NoError(connectedDriver.Unlock()) }()
+	driver, ok := connectedDriver.(*sqlite)
+	suite.Require().True(ok)
 
-	err = connectedDriver.Lock()
+	err := driver.lock()
+	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
+	defer func() { suite.Require().NoError(driver.unlock()) }()
+
+	err = driver.lock()
 	suite.Require().Error(err, "should error when attempting to acquire a lock if driver is locked")
 }
 
@@ -142,13 +145,16 @@ func (suite *SqliteTestSuite) TestUnlock() {
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
-	err := connectedDriver.Lock()
+	driver, ok := connectedDriver.(*sqlite)
+	suite.Require().True(ok)
+
+	err := driver.lock()
 	suite.Require().NoError(err, "should not error when attempting to acquire a lock")
 
-	err = connectedDriver.Unlock()
+	err = driver.unlock()
 	suite.Require().NoError(err, "should not error when attempting to release a lock")
 
-	err = connectedDriver.Unlock()
+	err = driver.unlock()
 	suite.Require().NoError(err, "should not error when attempting to release an unlocked driver")
 }
 

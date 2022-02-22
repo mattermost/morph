@@ -132,7 +132,7 @@ func (driver *sqlite) Close() error {
 	return nil
 }
 
-func (driver *sqlite) Lock() error {
+func (driver *sqlite) lock() error {
 	if !atomic.CompareAndSwapInt32(&driver.lockedFlag, 0, 1) {
 		return &drivers.DatabaseError{
 			OrigErr: errors.New("already locked"),
@@ -145,7 +145,7 @@ func (driver *sqlite) Lock() error {
 	return nil
 }
 
-func (driver *sqlite) Unlock() error {
+func (driver *sqlite) unlock() error {
 	atomic.StoreInt32(&driver.lockedFlag, 0)
 
 	return nil
@@ -170,11 +170,11 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 }
 
 func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err error) {
-	if err = driver.Lock(); err != nil {
+	if err = driver.lock(); err != nil {
 		return err
 	}
 	defer func() {
-		_ = driver.Unlock()
+		_ = driver.unlock()
 	}()
 
 	query, readErr := migration.Query()
@@ -232,11 +232,11 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 		}
 	}
 
-	if err = driver.Lock(); err != nil {
+	if err = driver.lock(); err != nil {
 		return nil, err
 	}
 	defer func() {
-		_ = driver.Unlock()
+		_ = driver.unlock()
 	}()
 
 	if err := driver.createSchemaTableIfNotExists(); err != nil {
