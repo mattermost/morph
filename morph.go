@@ -18,8 +18,8 @@ import (
 	ms "github.com/mattermost/morph/drivers/mysql"
 	ps "github.com/mattermost/morph/drivers/postgres"
 
+	_ "github.com/mattermost/morph/sources/embedded"
 	_ "github.com/mattermost/morph/sources/file"
-	_ "github.com/mattermost/morph/sources/go_bindata"
 )
 
 var migrationProgressStart = "==  %s: migrating  ================================================="
