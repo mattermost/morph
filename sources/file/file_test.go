@@ -13,7 +13,7 @@ import (
 )
 
 func TestFile(t *testing.T) {
-	testFilesDir := "../../testfiles"
+	testFilesDir := "../embedded/testfiles"
 
 	t.Run("should correctly create a source with the testfiles", func(t *testing.T) {
 		sourceURL := "file://" + testFilesDir

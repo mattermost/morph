@@ -1,4 +1,4 @@
-package bindata
+package embedded
 
 import (
 	"bytes"
@@ -24,20 +24,20 @@ type AssetSource struct {
 }
 
 func init() {
-	sources.Register("go-bindata", &Bindata{})
+	sources.Register("embedded", &Embedded{})
 }
 
-type Bindata struct {
+type Embedded struct {
 	assetSource *AssetSource
 	migrations  []*models.Migration
 }
 
-func (b *Bindata) Open(url string) (sources.Source, error) {
+func (b *Embedded) Open(url string) (sources.Source, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
 func WithInstance(assetSource *AssetSource) (sources.Source, error) {
-	b := &Bindata{
+	b := &Embedded{
 		assetSource: assetSource,
 		migrations:  []*models.Migration{},
 	}
@@ -59,10 +59,10 @@ func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 	return b, nil
 }
 
-func (b *Bindata) Close() error {
+func (b *Embedded) Close() error {
 	return nil
 }
 
-func (b *Bindata) Migrations() []*models.Migration {
+func (b *Embedded) Migrations() []*models.Migration {
 	return b.migrations
 }
