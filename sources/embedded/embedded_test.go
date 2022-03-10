@@ -5,7 +5,7 @@ package embedded
 
 import (
 	"embed"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mattermost/morph/sources/embedded/testdata"
@@ -38,7 +38,7 @@ func TestGoEmbed(t *testing.T) {
 	}
 
 	s := Resource(assetNames, func(name string) ([]byte, error) {
-		return assets.ReadFile(filepath.Join("testfiles", name))
+		return assets.ReadFile(strings.Join([]string{"testfiles", name}, "/"))
 	})
 
 	src, err := WithInstance(s)
