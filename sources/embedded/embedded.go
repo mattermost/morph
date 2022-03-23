@@ -23,17 +23,9 @@ type AssetSource struct {
 	AssetFunc AssetFunc
 }
 
-func init() {
-	sources.Register("embedded", &Embedded{})
-}
-
 type Embedded struct {
 	assetSource *AssetSource
 	migrations  []*models.Migration
-}
-
-func (b *Embedded) Open(url string) (sources.Source, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 func WithInstance(assetSource *AssetSource) (sources.Source, error) {
@@ -57,10 +49,6 @@ func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 	}
 
 	return b, nil
-}
-
-func (b *Embedded) Close() error {
-	return nil
 }
 
 func (b *Embedded) Migrations() []*models.Migration {
