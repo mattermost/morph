@@ -38,7 +38,7 @@ func TestGoEmbed(t *testing.T) {
 	}
 
 	s := Resource(assetNames, func(name string) ([]byte, error) {
-		return assets.ReadFile(strings.Join([]string{"testfiles", name}, "/"))
+		return assets.ReadFile("testfiles/" + name)
 	})
 
 	src, err := WithInstance(s)
