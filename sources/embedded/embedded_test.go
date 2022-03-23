@@ -5,7 +5,6 @@ package embedded
 
 import (
 	"embed"
-	"strings"
 	"testing"
 
 	"github.com/mattermost/morph/sources/embedded/testdata"
