@@ -9,11 +9,11 @@ import (
 	"github.com/mattermost/morph/drivers/mysql"
 	"github.com/mattermost/morph/drivers/postgres"
 	"github.com/mattermost/morph/drivers/sqlite"
-	"github.com/mattermost/morph/sources"
+	"github.com/mattermost/morph/sources/file"
 )
 
-func Migrate(ctx context.Context, dsn, source, driverName, path string, options ...morph.EngineOption) error {
-	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
+func Migrate(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
 	if err != nil {
 		return err
 	}
@@ -22,8 +22,8 @@ func Migrate(ctx context.Context, dsn, source, driverName, path string, options 
 	return engine.ApplyAll()
 }
 
-func Up(ctx context.Context, limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
+func Up(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -32,8 +32,8 @@ func Up(ctx context.Context, limit int, dsn, source, driverName, path string, op
 	return engine.Apply(limit)
 }
 
-func Down(ctx context.Context, limit int, dsn, source, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, source, driverName, path, options...)
+func Down(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -42,12 +42,11 @@ func Down(ctx context.Context, limit int, dsn, source, driverName, path string, 
 	return engine.ApplyDown(limit)
 }
 
-func initializeEngine(ctx context.Context, dsn, source, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {
-	src, err := sources.Open(source, path)
+func initializeEngine(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {
+	src, err := file.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer src.Close()
 
 	var driver drivers.Driver
 	switch driverName {

@@ -17,7 +17,7 @@ func TestFile(t *testing.T) {
 
 	t.Run("should correctly create a source with the testfiles", func(t *testing.T) {
 		sourceURL := "file://" + testFilesDir
-		f, err := (&File{}).Open(sourceURL)
+		f, err := Open(sourceURL)
 		require.NoError(t, err)
 
 		testlib.Test(t, f)
@@ -27,7 +27,7 @@ func TestFile(t *testing.T) {
 		absTestFilesDir, err := filepath.Abs(testFilesDir)
 		require.NoError(t, err)
 
-		f, err := (&File{}).Open(absTestFilesDir)
+		f, err := Open(absTestFilesDir)
 		require.NoError(t, err)
 
 		testlib.Test(t, f)
