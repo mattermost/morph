@@ -167,18 +167,12 @@ func (m *Mutex) refreshLock(ctx context.Context) error {
 	return nil
 }
 
-// Lock locks m. If the mutex is already locked by any other morph instance, including the current one,
-// the calling goroutine blocks until the mutex can be locked.
-func (m *Mutex) Lock() error {
-	return m.LockWithContext(context.Background())
-}
-
-// LockWithContext locks m unless the context is canceled. If the mutex is already locked by any other
+// Lock locks m unless the context is canceled. If the mutex is already locked by any other
 // instance, including the current one, the calling goroutine blocks until the mutex can be locked,
 // or the context is canceled.
 //
 // The mutex is locked only if a nil error is returned.
-func (m *Mutex) LockWithContext(ctx context.Context) error {
+func (m *Mutex) Lock(ctx context.Context) error {
 	var waitInterval time.Duration
 
 	for {
