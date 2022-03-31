@@ -71,7 +71,11 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 
 	query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
 	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
-		err2 := m.releaseLock(tx, now)
+		if txErr := tx.Rollback(); txErr != nil {
+			return false, txErr
+		}
+
+		err2 := m.releaseLock(ctx, now)
 		if err2 == nil { // lock has been released due to expiration
 			return true, nil
 		}
@@ -91,7 +95,12 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (m *Mutex) releaseLock(tx *sql.Tx, t time.Time) error {
+func (m *Mutex) releaseLock(ctx context.Context, t time.Time) error {
+	tx, err := m.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	e, err := m.getExpireAt(tx)
 	if err != nil {
 		return err
