@@ -72,15 +72,14 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer m.finalizeTx(tx)
 
 	query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
 	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
 		if strings.Contains(err.Error(), "Error 1062") {
 			m.logger.Println("DB is locked, going to try acquire the lock if it is expired.")
 		}
-		if txErr := tx.Rollback(); txErr != nil {
-			return false, txErr
-		}
+		m.finalizeTx(tx)
 
 		err2 := m.releaseLock(ctx, now)
 		if err2 == nil { // lock has been released due to expiration
@@ -92,10 +91,6 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 
 	err = tx.Commit()
 	if err != nil {
-		if txErr := tx.Rollback(); txErr != nil {
-			return false, txErr
-		}
-
 		return false, err
 	}
 
@@ -107,6 +102,7 @@ func (m *Mutex) releaseLock(ctx context.Context, t time.Time) error {
 	if err != nil {
 		return err
 	}
+	defer m.finalizeTx(tx)
 
 	e, err := m.getExpireAt(tx)
 	if err != nil {
@@ -114,10 +110,6 @@ func (m *Mutex) releaseLock(ctx context.Context, t time.Time) error {
 	}
 
 	if t.Unix() < e {
-		if txErr := tx.Rollback(); txErr != nil {
-			return fmt.Errorf("could not rollback: %w", txErr)
-		}
-
 		return errors.New("could not release the lock")
 	}
 
@@ -128,10 +120,6 @@ func (m *Mutex) releaseLock(ctx context.Context, t time.Time) error {
 
 	err = tx.Commit()
 	if err != nil {
-		if txErr := tx.Rollback(); txErr != nil {
-			return fmt.Errorf("could not rollback transaction: %w", txErr)
-		}
-
 		return fmt.Errorf("unable to set new expireat for mutex: %w", err)
 	}
 
@@ -143,10 +131,6 @@ func (m *Mutex) getExpireAt(tx *sql.Tx) (int64, error) {
 	query := fmt.Sprintf("SELECT ExpireAt FROM %s WHERE Id = ?", drivers.MutexTableName)
 	err := tx.QueryRow(query, m.key).Scan(&expireAt)
 	if err != nil {
-		if txErr := tx.Rollback(); txErr != nil {
-			return -1, fmt.Errorf("could not rollback: %w", txErr)
-		}
-
 		return -1, fmt.Errorf("failed to fetch mutex from db: %w", err)
 	}
 
@@ -159,6 +143,7 @@ func (m *Mutex) refreshLock(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer m.finalizeTx(tx)
 
 	e, err := m.getExpireAt(tx)
 	if err != nil {
@@ -173,10 +158,6 @@ func (m *Mutex) refreshLock(ctx context.Context) error {
 
 	err = tx.Commit()
 	if err != nil {
-		if txErr := tx.Rollback(); txErr != nil {
-			return fmt.Errorf("could not rollback: %w", txErr)
-		}
-
 		return fmt.Errorf("unable to refresh expireat for mutex: %w", err)
 	}
 
@@ -258,14 +239,16 @@ func (m *Mutex) Unlock() error {
 
 func executeTx(tx *sql.Tx, query string, args ...interface{}) error {
 	if _, err := tx.Exec(query, args...); err != nil {
-		if txErr := tx.Rollback(); txErr != nil {
-			return fmt.Errorf("could not rollback transaction: %w", txErr)
-		}
-
 		return err
 	}
 
 	return nil
+}
+
+func (m *Mutex) finalizeTx(tx *sql.Tx) {
+	if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+		m.logger.Printf("failed to rollback transaction: %s", err)
+	}
 }
 
 // noCopy may be embedded into structs which must not be copied
