@@ -4,11 +4,15 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mattermost/morph/drivers"
 	"github.com/mattermost/morph/models"
@@ -389,4 +393,78 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 
 func TestPostgresSuite(t *testing.T) {
 	suite.Run(t, new(PostgresTestSuite))
+}
+
+func (suite *PostgresTestSuite) TestLock() {
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
+
+	logger := log.New(os.Stderr, "", 0)
+
+	suite.T().Run("should create lock and unlock the mutex", func(t *testing.T) {
+		ctx := context.Background()
+		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+		suite.Require().NoError(err, "should not error while creating the mutex")
+
+		err = mx.Lock(ctx)
+		suite.Require().NoError(err, "should not error while locking the mutex")
+
+		err = mx.Unlock()
+		suite.Require().NoError(err, "should not error while unlocking the mutex")
+	})
+
+	suite.T().Run("should release the expired lock", func(t *testing.T) {
+		ctx := context.Background()
+
+		pq := connectedDriver.(*postgres)
+		query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
+		_, err := pq.conn.ExecContext(ctx, query, "test-lock-key", 1)
+		suite.Require().NoError(err, "should not error while manually inserting the mutex")
+
+		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+		suite.Require().NoError(err, "should not error while creating the mutex")
+
+		err = mx.Lock(ctx)
+		suite.Require().NoError(err, "should not error while locking the mutex")
+
+		err = mx.Unlock()
+		suite.Require().NoError(err, "should not error while unlocking the mutex")
+	})
+
+	suite.T().Run("should refresh the lock after expired", func(t *testing.T) {
+		ctx := context.Background()
+
+		now := time.Now()
+		timeout := time.After(2 * drivers.TTL) // should not wait to drop the lock for 30s
+
+		pq := connectedDriver.(*postgres)
+		query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
+		// set expiration 2 seconds later
+		_, err := pq.conn.ExecContext(ctx, query, "test-lock-key", now.Add(2*time.Second).Unix())
+		suite.Require().NoError(err, "should not error while manually inserting the mutex")
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				close(done)
+			}()
+			mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+			suite.Require().NoError(err, "should not error while creating the mutex")
+
+			err = mx.Lock(ctx)
+			suite.Require().NoError(err, "should not error while locking the mutex")
+
+			// ensure we waited the lock to be expire
+			suite.Require().True(time.Now().After(now.Add(2 * time.Second)))
+
+			err = mx.Unlock()
+			suite.Require().NoError(err, "should not error while unlocking the mutex")
+		}()
+
+		select {
+		case <-timeout:
+			suite.Require().Fail("should have wait and release the lock")
+		case <-done:
+		}
+	})
 }

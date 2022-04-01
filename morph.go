@@ -99,9 +99,9 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 		var err error
 		switch impl.DriverName() {
 		case "mysql":
-			mx, err = ms.NewMutex(engine.config.LockKey, driver)
+			mx, err = ms.NewMutex(engine.config.LockKey, driver, engine.config.Logger)
 		case "postgres":
-			mx, err = ps.NewMutex(engine.config.LockKey, driver)
+			mx, err = ps.NewMutex(engine.config.LockKey, driver, engine.config.Logger)
 		default:
 			err = errors.New("driver does not support locking")
 		}
