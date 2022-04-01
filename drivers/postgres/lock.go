@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/mattermost/morph/drivers"
 )
 
@@ -76,7 +76,7 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 
 	query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
 	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			m.logger.Println("DB is locked, going to try acquire the lock if it is expired.")
 		}
 		m.finalizeTx(tx)

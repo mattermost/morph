@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	ms "github.com/go-sql-driver/mysql"
 	"github.com/mattermost/morph/drivers"
 )
 
@@ -76,7 +76,7 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 
 	query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
 	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
-		if strings.Contains(err.Error(), "Error 1062") {
+		if mysqlErr, ok := err.(*ms.MySQLError); ok && mysqlErr.Number == 1062 {
 			m.logger.Println("DB is locked, going to try acquire the lock if it is expired.")
 		}
 		m.finalizeTx(tx)
