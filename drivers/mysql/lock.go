@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,12 +27,14 @@ type Mutex struct {
 	stopRefresh chan bool
 	refreshDone chan bool
 	conn        *sql.Conn
+
+	logger drivers.Logger
 }
 
 // NewMutex creates a mutex with the given key name.
 //
 // returns error if key is empty.
-func NewMutex(key string, driver drivers.Driver) (*Mutex, error) {
+func NewMutex(key string, driver drivers.Driver, logger drivers.Logger) (*Mutex, error) {
 	key, err := drivers.MakeLockKey(key)
 	if err != nil {
 		return nil, err
@@ -56,8 +59,9 @@ func NewMutex(key string, driver drivers.Driver) (*Mutex, error) {
 	}
 
 	return &Mutex{
-		key:  key,
-		conn: conn,
+		key:    key,
+		conn:   conn,
+		logger: logger,
 	}, nil
 }
 
@@ -71,6 +75,9 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 
 	query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
 	if _, err := tx.Exec(query, m.key, now.Add(drivers.TTL).Unix()); err != nil {
+		if strings.Contains(err.Error(), "Error 1062") {
+			m.logger.Println("DB is locked, going to try acquire the lock if it is expired.")
+		}
 		if txErr := tx.Rollback(); txErr != nil {
 			return false, txErr
 		}

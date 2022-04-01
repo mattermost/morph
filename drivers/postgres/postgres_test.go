@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -397,9 +399,11 @@ func (suite *PostgresTestSuite) TestLock() {
 	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 	defer teardown()
 
+	logger := log.New(os.Stderr, "", 0)
+
 	suite.T().Run("should create lock and unlock the mutex", func(t *testing.T) {
 		ctx := context.Background()
-		mx, err := NewMutex("test-lock-key", connectedDriver)
+		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -417,7 +421,7 @@ func (suite *PostgresTestSuite) TestLock() {
 		_, err := pq.conn.ExecContext(ctx, query, "test-lock-key", 1)
 		suite.Require().NoError(err, "should not error while manually inserting the mutex")
 
-		mx, err := NewMutex("test-lock-key", connectedDriver)
+		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -444,7 +448,7 @@ func (suite *PostgresTestSuite) TestLock() {
 			defer func() {
 				close(done)
 			}()
-			mx, err := NewMutex("test-lock-key", connectedDriver)
+			mx, err := NewMutex("test-lock-key", connectedDriver, logger)
 			suite.Require().NoError(err, "should not error while creating the mutex")
 
 			err = mx.Lock(ctx)
