@@ -10,6 +10,7 @@ package main
 import (
 	"archive/zip"
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -156,7 +157,7 @@ var (
 		"-DSQLITE_ENABLE_COLUMN_METADATA",
 		"-DSQLITE_ENABLE_FTS5",
 		"-DSQLITE_ENABLE_GEOPOLY",
-		"-DSQLITE_ENABLE_JSON1",
+		"-DSQLITE_ENABLE_MATH_FUNCTIONS",
 		"-DSQLITE_ENABLE_MEMORY_MANAGEMENT",
 		"-DSQLITE_ENABLE_OFFSET_SQL_FUNC",
 		"-DSQLITE_ENABLE_PREUPDATE_HOOK",
@@ -208,7 +209,7 @@ var (
 		"-DSQLITE_ENABLE_EXPLAIN_COMMENTS",
 		"-DSQLITE_ENABLE_FTS5",
 		"-DSQLITE_ENABLE_GEOPOLY",
-		"-DSQLITE_ENABLE_JSON1",
+		"-DSQLITE_ENABLE_MATH_FUNCTIONS",
 		"-DSQLITE_ENABLE_MEMORY_MANAGEMENT",
 		"-DSQLITE_ENABLE_OFFSET_SQL_FUNC",
 		"-DSQLITE_ENABLE_PREUPDATE_HOOK",
@@ -219,7 +220,6 @@ var (
 		"-DSQLITE_ENABLE_STAT4",
 		"-DSQLITE_ENABLE_STMTVTAB",      // testfixture
 		"-DSQLITE_ENABLE_UNLOCK_NOTIFY", // Adds sqlite3_unlock_notify().
-		"-DSQLITE_HAVE_ZLIB=1",          // testfixture
 		"-DSQLITE_LIKE_DOESNT_MATCH_BLOBS",
 		"-DSQLITE_MUTEX_APPDEF=1",
 		"-DSQLITE_MUTEX_NOOP",
@@ -254,12 +254,12 @@ var (
 		sz       int
 		dev      bool
 	}{
-		{sqliteDir, "https://www.sqlite.org/2021/sqlite-amalgamation-3370000.zip", 2457, false},
-		{sqliteSrcDir, "https://www.sqlite.org/2021/sqlite-src-3370000.zip", 12814, false},
+		{sqliteDir, "https://www.sqlite.org/2022/sqlite-amalgamation-3380500.zip", 2457, false},
+		{sqliteSrcDir, "https://www.sqlite.org/2022/sqlite-src-3380500.zip", 12814, false},
 	}
 
-	sqliteDir    = filepath.FromSlash("testdata/sqlite-amalgamation-3370000")
-	sqliteSrcDir = filepath.FromSlash("testdata/sqlite-src-3370000")
+	sqliteDir    = filepath.FromSlash("testdata/sqlite-amalgamation-3380500")
+	sqliteSrcDir = filepath.FromSlash("testdata/sqlite-src-3380500")
 )
 
 func download() {
@@ -373,7 +373,12 @@ func fail(s string, args ...interface{}) {
 	os.Exit(1)
 }
 
+var (
+	oFullPathComments = flag.Bool("full-path-comments", false, "")
+)
+
 func main() {
+	flag.Parse()
 	fmt.Printf("Running on %s/%s.\n", runtime.GOOS, runtime.GOARCH)
 	env := os.Getenv("GO_GENERATE")
 	goarch := runtime.GOARCH
@@ -397,7 +402,7 @@ func main() {
 	more = append(more, ndebug...)
 	download()
 	switch goos {
-	case "linux", "freebsd":
+	case "linux", "freebsd", "openbsd":
 		configProduction = append(configProduction, "-DSQLITE_OS_UNIX=1")
 	case "netbsd":
 		configProduction = append(configProduction, []string{
@@ -463,7 +468,7 @@ func configure(goos, goarch string) {
 	cmd.Run()
 	var args []string
 	switch goos {
-	case "linux", "freebsd", "netbsd":
+	case "linux", "freebsd", "netbsd", "openbsd":
 		// nop
 	case "darwin":
 		args = append(args, "--with-tcl=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Tcl.framework")
@@ -528,6 +533,7 @@ func makeTestfixture(goos, goarch string, more []string) {
 		"ext/misc/normalize.c",
 		"ext/misc/percentile.c",
 		"ext/misc/prefixes.c",
+		"ext/misc/qpvtab.c",
 		"ext/misc/regexp.c",
 		"ext/misc/remember.c",
 		"ext/misc/series.c",
@@ -535,7 +541,6 @@ func makeTestfixture(goos, goarch string, more []string) {
 		"ext/misc/totype.c",
 		"ext/misc/unionvtab.c",
 		"ext/misc/wholenumber.c",
-		"ext/misc/zipfile.c",
 		"ext/rbu/test_rbu.c",
 		"ext/rtree/test_rtreedoc.c",
 		"ext/session/test_session.c",
@@ -595,7 +600,7 @@ func makeTestfixture(goos, goarch string, more []string) {
 
 	var defines, includes []string
 	switch goos {
-	case "freebsd":
+	case "freebsd", "openbsd":
 		includes = []string{"-I/usr/local/include/tcl8.6"}
 	case "linux":
 		includes = []string{"-I/usr/include/tcl8.6"}
@@ -652,6 +657,7 @@ func makeTestfixture(goos, goarch string, more []string) {
 			fmt.Sprintf("-I%s", sqliteDir),
 			fmt.Sprintf("-I%s", sqliteSrcDir),
 		},
+		otherOpts(),
 		files,
 		more,
 		configTest,
@@ -660,6 +666,13 @@ func makeTestfixture(goos, goarch string, more []string) {
 	if err := task.Main(); err != nil {
 		fail("%s\n", err)
 	}
+}
+
+func otherOpts() (r []string) {
+	if *oFullPathComments {
+		r = append(r, "-full-path-comments")
+	}
+	return r
 }
 
 func makeSpeedTest(goos, goarch string, more []string) {
@@ -675,6 +688,7 @@ func makeSpeedTest(goos, goarch string, more []string) {
 				fmt.Sprintf("-I%s", sqliteDir),
 				"-l", "modernc.org/sqlite/lib",
 			},
+			otherOpts(),
 			more,
 			configProduction,
 		),
@@ -699,6 +713,7 @@ func makeMpTest(goos, goarch string, more []string) {
 				fmt.Sprintf("-I%s", sqliteDir),
 				"-l", "modernc.org/sqlite/lib",
 			},
+			otherOpts(),
 			more,
 			configProduction,
 		),
@@ -727,6 +742,7 @@ func makeSqliteProduction(goos, goarch string, more []string) {
 				"-trace-translation-units",
 				filepath.Join(sqliteDir, "sqlite3.c"),
 			},
+			otherOpts(),
 			more,
 			configProduction,
 		),
@@ -756,6 +772,7 @@ func makeSqliteTest(goos, goarch string, more []string) {
 				volatiles,
 				filepath.Join(sqliteDir, "sqlite3.c"),
 			},
+			otherOpts(),
 			more,
 			configTest,
 		),
