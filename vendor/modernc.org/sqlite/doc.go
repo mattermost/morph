@@ -38,6 +38,11 @@
 //
 // Changelog
 //
+// 2022-07-26 v1.18.0:
+//
+// Adds support for Go fs.FS based SQLite virtual filesystems, see function New
+// in modernc.org/sqlite/vfs and/or TestVFS in all_test.go
+//
 // 2022-04-24 v1.17.0:
 //
 // Support windows/arm64.

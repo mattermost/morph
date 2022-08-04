@@ -100,7 +100,7 @@ modernc.org/mathutil
 modernc.org/memory
 # modernc.org/opt v0.1.1
 modernc.org/opt
-# modernc.org/sqlite v1.17.2
+# modernc.org/sqlite v1.18.0
 ## explicit
 modernc.org/sqlite
 modernc.org/sqlite/lib

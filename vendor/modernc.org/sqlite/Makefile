@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-.PHONY:	all clean cover cpu editor internalError later mem nuke todo edit tcl extraquick full
+.PHONY:	all clean cover cpu editor internalError later mem nuke todo edit tcl extraquick full tmp
 
 grep=--include=*.go --include=*.l --include=*.y --include=*.yy
 ngrep='TODOOK\|internal\/vfs\|internal\/bin\|internal\/mptest\|.*stringer.*\.go'
