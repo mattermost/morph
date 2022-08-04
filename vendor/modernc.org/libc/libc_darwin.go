@@ -2004,3 +2004,42 @@ func Xuuid_parse(t *TLS, in uintptr, uu uintptr) int32 {
 	copy((*RawMem)(unsafe.Pointer(uu))[:unsafe.Sizeof(uuid.Uuid_t{})], r[:])
 	return 0
 }
+
+// struct __float2 { float __sinval; float __cosval; };
+
+// struct __float2 __sincosf_stret(float);
+func X__sincosf_stret(t *TLS, f float32) struct{ F__sinval, F__cosval float32 } {
+	panic(todo(""))
+}
+
+// struct __double2 { double __sinval; double __cosval; };
+
+// struct __double2 __sincos_stret(double);
+func X__sincos_stret(t *TLS, f float64) struct{ F__sinval, F__cosval float64 } {
+	panic(todo(""))
+}
+
+// struct __float2 __sincospif_stret(float);
+func X__sincospif_stret(t *TLS, f float32) struct{ F__sinval, F__cosval float32 } {
+	panic(todo(""))
+}
+
+// struct _double2 __sincospi_stret(double);
+func X__sincospi_stret(t *TLS, f float64) struct{ F__sinval, F__cosval float64 } {
+	panic(todo(""))
+}
+
+// int	__srget(FILE *);
+func X__srget(t *TLS, f uintptr) int32 {
+	panic(todo(""))
+}
+
+// int	__svfscanf(FILE *, const char *, va_list) __scanflike(2, 0);
+func X__svfscanf(t *TLS, f uintptr, p, q uintptr) int32 {
+	panic(todo(""))
+}
+
+// int	__swbuf(int, FILE *);
+func X__swbuf(t *TLS, i int32, f uintptr) int32 {
+	panic(todo(""))
+}

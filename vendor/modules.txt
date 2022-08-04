@@ -63,11 +63,11 @@ golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # lukechampine.com/uint128 v1.1.1
 lukechampine.com/uint128
-# modernc.org/cc/v3 v3.35.18
+# modernc.org/cc/v3 v3.36.0
 modernc.org/cc/v3
-# modernc.org/ccgo/v3 v3.12.95
+# modernc.org/ccgo/v3 v3.16.6
 modernc.org/ccgo/v3/lib
-# modernc.org/libc v1.11.104
+# modernc.org/libc v1.16.7
 modernc.org/libc
 modernc.org/libc/errno
 modernc.org/libc/fcntl
@@ -96,11 +96,11 @@ modernc.org/libc/uuid/uuid
 modernc.org/libc/wctype
 # modernc.org/mathutil v1.4.1
 modernc.org/mathutil
-# modernc.org/memory v1.0.5
+# modernc.org/memory v1.1.1
 modernc.org/memory
 # modernc.org/opt v0.1.1
 modernc.org/opt
-# modernc.org/sqlite v1.14.3
+# modernc.org/sqlite v1.18.0
 ## explicit
 modernc.org/sqlite
 modernc.org/sqlite/lib

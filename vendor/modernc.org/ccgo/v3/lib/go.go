@@ -1012,6 +1012,8 @@ func (p *project) isArray(f *function, n declarator, t cc.Type) (r bool) {
 	return p.detectArray(f, n.(cc.Node), false, true, nil)
 }
 
+var home = os.Getenv("HOME")
+
 // Return n's position with path reduced to baseName(path) unless
 // p.task.fullPathComments is true.
 func (p *project) pos(n cc.Node) (r token.Position) {
@@ -1019,9 +1021,15 @@ func (p *project) pos(n cc.Node) (r token.Position) {
 		return r
 	}
 
-	r = token.Position(n.Position())
-	if r.IsValid() && !p.task.fullPathComments {
-		r.Filename = filepath.Base(r.Filename)
+	if r = token.Position(n.Position()); r.IsValid() {
+		switch {
+		case p.task.fullPathComments:
+			if strings.HasPrefix(r.Filename, home) {
+				r.Filename = "$HOME" + r.Filename[len(home):]
+			}
+		default:
+			r.Filename = filepath.Base(r.Filename)
+		}
 	}
 	return r
 }
@@ -1491,7 +1499,7 @@ func (p *project) layoutDefines() error {
 			}
 			name = p.scope.take(cc.String(name))
 			p.defines[nm] = define{name, val}
-			p.defineLines = append(p.defineLines, fmt.Sprintf("%s = %s", name, src))
+			p.defineLines = append(p.defineLines, fmt.Sprintf("%s = %s // %v:", name, src, p.pos(m)))
 		}
 	}
 	return nil
@@ -3117,6 +3125,9 @@ func (p *project) declaratorDecay(n cc.Node, f *function, d *cc.Declarator, t cc
 				return
 			}
 
+			if !local.isPinned {
+				p.err(n, "%v: %v: missed pinning", n.Position(), d.Position(), d.Name())
+			}
 			p.w("(%s%s)/* &%s[0] */", f.bpName, nonZeroUintptr(local.off), local.name)
 			return
 		}
@@ -3663,7 +3674,7 @@ func (p *project) declaratorAddrOfNormal(n cc.Node, f *function, d *cc.Declarato
 		x.used = true
 		p.w("uintptr(unsafe.Pointer(&%sX%s))", x.qualifier, d.Name())
 	default:
-		panic(todo("%v: %v: %q %T", n.Position(), p.pos(d), d.Name(), x))
+		p.err(n, "undefined: %s", d.Name())
 	}
 }
 
@@ -3926,9 +3937,9 @@ func (p *project) convertToUint128(n cc.Node, op cc.Operand, to cc.Type, flags f
 func (p *project) convertNil(n cc.Node, to cc.Type, flags flags) string {
 	switch to.Kind() {
 	case cc.Int128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	case cc.UInt128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	}
 
 	p.w("%s(", p.typ(n, to))
@@ -4022,15 +4033,15 @@ func (p *project) convertInt(n cc.Node, op cc.Operand, to cc.Type, flags flags) 
 	from := op.Type()
 	switch from.Kind() {
 	case cc.Int128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	case cc.UInt128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	}
 	switch to.Kind() {
 	case cc.Int128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	case cc.UInt128:
-		panic(todo("", pos(n)))
+		panic(todo("", p.pos(n)))
 	}
 
 	force := flags&fForceConv != 0
@@ -8135,6 +8146,11 @@ func (p *project) castExpressionValue(f *function, n *cc.CastExpression, t cc.Ty
 	case cc.CastExpressionUnary: // UnaryExpression
 		p.unaryExpression(f, n.UnaryExpression, t, mode, flags)
 	case cc.CastExpressionCast: // '(' TypeName ')' CastExpression
+		if f != nil && p.pass1 && n.TypeName.Type().IsIntegerType() && n.CastExpression.Operand.Type().Kind() == cc.Array {
+			if d := n.CastExpression.Declarator(); d != nil {
+				f.pin(n, d)
+			}
+		}
 		switch k := p.opKind(f, n.CastExpression, n.CastExpression.Operand.Type()); k {
 		case opNormal, opBitfield:
 			p.castExpressionValueNormal(f, n, t, mode, flags)
@@ -8168,8 +8184,12 @@ func (p *project) castExpressionValueFunction(f *function, n *cc.CastExpression,
 		switch {
 		case tn.Kind() == cc.Ptr && t.Kind() == cc.Ptr:
 			p.castExpression(f, n.CastExpression, op.Type(), exprValue, flags)
+		case tn.IsIntegerType():
+			p.w("%s(", p.typ(n, tn))
+			p.castExpression(f, n.CastExpression, op.Type(), exprValue, flags)
+			p.w(")")
 		default:
-			panic(todo("", n.Position()))
+			panic(todo("%v: tn %v expr %v", n.Position(), tn, op.Type()))
 		}
 	default:
 		panic(todo("%v: %v -> %v -> %v", p.pos(n), op.Type(), tn, t))
@@ -12036,7 +12056,7 @@ func (p *project) intConst(n cc.Node, src string, op cc.Operand, to cc.Type, fla
 		defer p.w(")")
 		// ok
 	default:
-		panic(todo("%v: %v -> %v", pos(n), op.Type(), to))
+		panic(todo("%v: %v -> %v", p.pos(n), op.Type(), to))
 	}
 
 	src = strings.TrimRight(src, "luLU")
@@ -12557,7 +12577,7 @@ func (p *project) iterationStatement(f *function, n *cc.IterationStatement) {
 			break
 		}
 
-		v := "ok"
+		v := "__ccgo"
 		if !p.pass1 {
 			v = f.scope.take(cc.String(v))
 		}
