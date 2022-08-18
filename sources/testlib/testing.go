@@ -5,7 +5,6 @@ package testlib
 
 import (
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/mattermost/morph/sources"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func checkMigrations(t *testing.T, migrations []*models.Migration) {
@@ -22,9 +20,7 @@ func checkMigrations(t *testing.T, migrations []*models.Migration) {
 		for _, migration := range migrations {
 			if strings.Contains(migration.Name, fmt.Sprintf("migration_%d", i)) {
 				migrationExists = true
-				b, err := ioutil.ReadAll(migration.Bytes)
-				require.NoError(t, err)
-				assert.Contains(t, string(b), fmt.Sprintf("migration%d", i))
+				assert.Contains(t, string(migration.Bytes), fmt.Sprintf("migration%d", i))
 			}
 		}
 		assert.Truef(t, migrationExists, "Migration %d was not found in source", i)

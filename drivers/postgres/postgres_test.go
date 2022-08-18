@@ -7,10 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -245,7 +243,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -258,7 +256,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
+					Bytes:   []byte("select 1;\nselect 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -271,14 +269,14 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_2.sql",
 				},
 			},
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -290,7 +288,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -305,12 +303,12 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_2.sql",
 				},
 			},
