@@ -1,6 +1,8 @@
 package drivers
 
 import (
+	"database/sql"
+
 	"github.com/mattermost/morph/models"
 )
 
@@ -20,4 +22,9 @@ type Driver interface {
 	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
 	SetConfig(key string, value interface{}) error
+}
+
+type DBNamer interface {
+	DB() *sql.DB
+	Name() string
 }
