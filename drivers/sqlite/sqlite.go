@@ -177,15 +177,8 @@ func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err 
 		_ = driver.unlock()
 	}()
 
-	query, readErr := migration.Query()
-	if readErr != nil {
-		return &drivers.AppError{
-			OrigErr: readErr,
-			Driver:  driverName,
-			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
-		}
-	}
-	defer migration.Close()
+	query := migration.Query()
+
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
