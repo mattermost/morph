@@ -143,22 +143,6 @@ func mergeConfigWithParams(params map[string]string, config *driverConfig) (*dri
 	return config, nil
 }
 
-func mergeConfigs(config, defaultConfig *driverConfig) *driverConfig {
-	if config.MigrationsTable == "" {
-		config.MigrationsTable = defaultConfig.MigrationsTable
-	}
-
-	if config.StatementTimeoutInSecs == 0 {
-		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
-	}
-
-	if config.MigrationMaxSize == 0 {
-		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
-	}
-
-	return config
-}
-
 func (pg *postgres) Ping() error {
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()

@@ -273,22 +273,6 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 	return appliedMigrations, nil
 }
 
-func mergeConfigs(config *driverConfig, defaultConfig *driverConfig) *driverConfig {
-	if config.MigrationsTable == "" {
-		config.MigrationsTable = defaultConfig.MigrationsTable
-	}
-
-	if config.StatementTimeoutInSecs == 0 {
-		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
-	}
-
-	if config.MigrationMaxSize == 0 {
-		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
-	}
-
-	return config
-}
-
 func mergeConfigWithParams(params map[string]string, config *driverConfig) (*driverConfig, error) {
 	var err error
 
