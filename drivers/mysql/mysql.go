@@ -24,7 +24,7 @@ var configParams = []string{
 	"x-statement-timeout",
 }
 
-type Config struct {
+type driverConfig struct {
 	drivers.Config
 	databaseName   string
 	closeDBonClose bool
@@ -33,11 +33,11 @@ type Config struct {
 type mysql struct {
 	conn   *sql.Conn
 	db     *sql.DB
-	config *Config
+	config *driverConfig
 }
 
-func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
-	driverConfig := mergeConfigs(config, getDefaultConfig())
+func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
+	driverConfig := getDefaultConfig()
 
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
@@ -237,7 +237,7 @@ func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err er
 	return appliedMigrations, nil
 }
 
-func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
+func currentDatabaseNameFromDB(conn *sql.Conn, config *driverConfig) (string, error) {
 	query := "SELECT DATABASE()"
 
 	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
@@ -257,7 +257,7 @@ func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
 	return databaseName, nil
 }
 
-func mergeConfigs(config *Config, defaultConfig *Config) *Config {
+func mergeConfigs(config *driverConfig, defaultConfig *driverConfig) *driverConfig {
 	if config.MigrationsTable == "" {
 		config.MigrationsTable = defaultConfig.MigrationsTable
 	}
@@ -273,7 +273,7 @@ func mergeConfigs(config *Config, defaultConfig *Config) *Config {
 	return config
 }
 
-func mergeConfigWithParams(params map[string]string, config *Config) (*Config, error) {
+func mergeConfigWithParams(params map[string]string, config *driverConfig) (*driverConfig, error) {
 	var err error
 
 	for _, configKey := range configParams {

@@ -35,34 +35,28 @@ type Morph struct {
 }
 
 type Config struct {
-	Logger      Logger
-	LockTimeout time.Duration
-	LockKey     string
+	Logger  Logger
+	LockKey string
 }
 
-type EngineOption func(*Morph)
+type EngineOption func(*Morph) error
 
 func WithLogger(logger Logger) EngineOption {
-	return func(m *Morph) {
+	return func(m *Morph) error {
 		m.config.Logger = logger
-	}
-}
-
-func WithLockTimeout(lockTimeout time.Duration) EngineOption {
-	return func(m *Morph) {
-		m.config.LockTimeout = lockTimeout
+		return nil
 	}
 }
 
 func SetMigrationTableName(name string) EngineOption {
-	return func(m *Morph) {
-		_ = m.driver.SetConfig("MigrationsTable", name)
+	return func(m *Morph) error {
+		return m.driver.SetConfig("MigrationsTable", name)
 	}
 }
 
 func SetStatementTimeoutInSeconds(n int) EngineOption {
-	return func(m *Morph) {
-		_ = m.driver.SetConfig("StatementTimeoutInSecs", n)
+	return func(m *Morph) error {
+		return m.driver.SetConfig("StatementTimeoutInSecs", n)
 	}
 }
 
@@ -70,13 +64,16 @@ func SetStatementTimeoutInSeconds(n int) EngineOption {
 // guaranteed to be executed from a single instance. The key is used for naming
 // the mutex.
 func WithLock(key string) EngineOption {
-	return func(m *Morph) {
+	return func(m *Morph) error {
 		m.config.LockKey = key
+		return nil
 	}
 }
 
 // New creates a new instance of the migrations engine from an existing db instance and a migrations source.
 // If the driver implements the Lockable interface, it will also wait until it has acquired a lock.
+// The context is propagated to the drivers lock method (if the driver implements divers.Locker interface) and
+// it can be used to cancel the lock acquisition.
 func New(ctx context.Context, driver drivers.Driver, source sources.Source, options ...EngineOption) (*Morph, error) {
 	engine := &Morph{
 		config: &Config{
@@ -87,7 +84,9 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 	}
 
 	for _, option := range options {
-		option(engine)
+		if err := option(engine); err != nil {
+			return nil, fmt.Errorf("could not apply option: %w", err)
+		}
 	}
 
 	if err := driver.Ping(); err != nil {
