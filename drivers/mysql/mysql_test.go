@@ -61,6 +61,9 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 	_, err := suite.db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
 	suite.Require().NoError(err, "should not error when dropping the test database")
 
+	_, err = suite.db.Exec(fmt.Sprintf("CREATE DATABASE %s", databaseName))
+	suite.Require().NoError(err, "should not error when creating the test database")
+
 	if suite.db != nil {
 		err := suite.db.Close()
 		suite.Require().NoError(err, "should not error when closing the default database connection")

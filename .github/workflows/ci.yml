@@ -19,6 +19,8 @@ jobs:
         image: postgres
         env:
           POSTGRES_PASSWORD: morph
+          POSTGRES_DB: morph_test
+          POSTGRES_USER: morph
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready

@@ -21,10 +21,10 @@ import (
 
 var (
 	databaseName = "morph_test"
-	testConnURL  = fmt.Sprintf("postgres://postgres:morph@localhost:5432/%s?sslmode=disable", databaseName)
+	testConnURL  = fmt.Sprintf("postgres://morph:morph@localhost/%s?sslmode=disable", databaseName)
 )
 
-const adminConnURL = "postgres://postgres:morph@localhost:5432?sslmode=disable"
+const adminConnURL = "postgres://morph:morph@localhost?sslmode=disable"
 
 type PostgresTestSuite struct {
 	suite.Suite
@@ -32,21 +32,18 @@ type PostgresTestSuite struct {
 }
 
 func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
-	db, err := sql.Open(driverName, adminConnURL)
-	suite.Require().NoError(err, "should not error when connecting as admin to the database")
-	defer func() {
-		err = db.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
-	suite.Require().NoError(err, "should not error when dropping the test database")
-
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", databaseName))
-	suite.Require().NoError(err, "should not error when creating the test database")
-
+	var err error
 	suite.db, err = sql.Open(driverName, testConnURL)
 	suite.Require().NoError(err, "should not error when connecting to the test database")
+
+	_, err = suite.db.Exec(`DO $$ DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+END $$;`)
+	suite.Require().NoError(err, "should not error when dropping the tables the test database")
 }
 
 func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
@@ -62,19 +59,22 @@ func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver
 
 func (suite *PostgresTestSuite) AfterTest(_, _ string) {
 	if suite.db != nil {
-		err := suite.db.Close()
+		var err error
+		suite.db, err = sql.Open(driverName, testConnURL)
+		suite.Require().NoError(err, "should not error when connecting to the test database")
+
+		_, err = suite.db.Exec(`DO $$ DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+END $$;`)
+		suite.Require().NoError(err, "should not error when dropping the tables the test database")
+
+		err = suite.db.Close()
 		suite.Require().NoError(err, "should not error when closing the test database connection")
 	}
-
-	db, err := sql.Open(driverName, adminConnURL)
-	suite.Require().NoError(err, "should not error when connecting as admin to the database")
-	defer func() {
-		err = db.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
-	suite.Require().NoError(err, "should not error when dropping the test database")
 }
 
 func (suite *PostgresTestSuite) TestOpen() {

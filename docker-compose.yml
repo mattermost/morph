@@ -7,6 +7,8 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_PASSWORD: morph
+      POSTGRES_DB: morph_test
+      POSTGRES_USER: morph
   mysql:
     image: "mysql:5.7"
     restart: always
