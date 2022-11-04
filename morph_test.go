@@ -1,3 +1,6 @@
+//go:build !drivers
+// +build !drivers
+
 package morph
 
 import (
@@ -6,6 +9,7 @@ import (
 	"github.com/mattermost/morph/models"
 
 	"github.com/stretchr/testify/assert"
+	_ "modernc.org/sqlite"
 )
 
 func TestSortMigrations(t *testing.T) {
