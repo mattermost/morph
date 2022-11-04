@@ -15,11 +15,11 @@ func extractDatabaseNameFromURL(URL string) (string, error) {
 	return uri.Path[1:], nil
 }
 
-func getDefaultConfig() *Config {
-	return &Config{
+func getDefaultConfig() *driverConfig {
+	return &driverConfig{
 		Config: drivers.Config{
 			MigrationsTable:        "db_migrations",
-			StatementTimeoutInSecs: 60,
+			StatementTimeoutInSecs: 300,
 			MigrationMaxSize:       defaultMigrationMaxSize,
 		},
 	}

@@ -350,10 +350,10 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	sqliteDriver := driver.(*sqlite)
+	sqliteDriver.config.closeDBonClose = true
+
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()

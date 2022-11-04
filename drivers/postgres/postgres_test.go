@@ -94,7 +94,7 @@ func (suite *PostgresTestSuite) TestOpen() {
 		defer teardown()
 
 		defaultConfig := getDefaultConfig()
-		cfg := &Config{
+		cfg := &driverConfig{
 			Config: drivers.Config{
 				MigrationsTable:        defaultConfig.MigrationsTable,
 				StatementTimeoutInSecs: defaultConfig.StatementTimeoutInSecs,
@@ -375,18 +375,17 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	psqlDriver := driver.(*postgres)
+	psqlDriver.config.closeDBonClose = true
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
-	suite.Assert().Equal(databaseName, config.databaseName)
-	suite.Assert().Equal("public", config.schemaName)
+	suite.Assert().Equal(databaseName, psqlDriver.config.databaseName)
+	suite.Assert().Equal("public", psqlDriver.config.schemaName)
 }
 
 func TestPostgresSuite(t *testing.T) {
