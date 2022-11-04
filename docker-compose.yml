@@ -4,7 +4,7 @@ services:
     image: postgres
     restart: always
     ports:
-      - "5432:5432"
+      - "6432:5432"
     environment:
       POSTGRES_PASSWORD: morph
       POSTGRES_DB: morph_test

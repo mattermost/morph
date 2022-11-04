@@ -21,7 +21,7 @@ import (
 
 var (
 	databaseName = "morph_test"
-	testConnURL  = fmt.Sprintf("postgres://morph:morph@localhost/%s?sslmode=disable", databaseName)
+	testConnURL  = fmt.Sprintf("postgres://morph:morph@localhost:6432/%s?sslmode=disable", databaseName)
 )
 
 const adminConnURL = "postgres://morph:morph@localhost?sslmode=disable"
