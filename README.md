@@ -33,7 +33,7 @@ if err != nil {
 }
 defer src.Close()
 
-driver, err := mysql.WithInstance(db, &mysql.Config{})
+driver, err := mysql.WithInstance(db)
 if err != nil {
     return err
 }
