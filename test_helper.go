@@ -1,3 +1,4 @@
+// nolint
 package morph
 
 import (

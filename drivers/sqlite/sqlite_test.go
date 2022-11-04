@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -362,12 +361,12 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 }
 
 func TestSqliteTestSuite(t *testing.T) {
-	defaultDBFile, err := ioutil.TempFile("", "morph-default.db")
+	defaultDBFile, err := os.CreateTemp("", "morph-default.db")
 	require.NoError(t, err)
 	info, err := defaultDBFile.Stat()
 	require.NoError(t, err)
 
-	testDBFile, err := ioutil.TempFile("", "morph-test.db")
+	testDBFile, err := os.CreateTemp("", "morph-test.db")
 	require.NoError(t, err)
 	tfInfo, err := testDBFile.Stat()
 	require.NoError(t, err)
