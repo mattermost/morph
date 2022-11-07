@@ -24,7 +24,6 @@ import (
 const (
 	defaultPostgresDSN = "postgres://morph:morph@localhost:6432/morph_test?sslmode=disable"
 	defaultMySQLDSN    = "morph:morph@tcp(127.0.0.1:3307)/morph_test?multiStatements=true"
-	defaultSQLiteDSN   = "file::memory:?cache=shared"
 )
 
 // query is a map of driver name to a map of direction for the dummy queries
