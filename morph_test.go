@@ -92,13 +92,17 @@ func TestDiff(t *testing.T) {
 	h.AddMigration(t, "test_migration_4")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// we have 2 pending migrations in the source
+		// the diff should return 2 migrations upwards
 		migrations, err := engine.Diff(models.Up)
 		require.NoError(t, err)
 
 		require.Len(t, migrations, 2)
-	}, "should have 1 migration to apply")
+	}, "should have 2 migrations to apply")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// There should be no migrations downwards
+		// since we didn't apply any migrations yet
 		migrations, err := engine.Diff(models.Down)
 		require.NoError(t, err)
 
@@ -106,6 +110,7 @@ func TestDiff(t *testing.T) {
 	}, "should return an empty list for down migrations")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// We apply the first migration, so we should have 1 migration pending
 		_, err := engine.Apply(1)
 		require.NoError(t, err)
 
@@ -116,6 +121,7 @@ func TestDiff(t *testing.T) {
 	}, "there should only one migration to apply")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// Apply all remaining migrations, so we should have no migrations pending
 		err := engine.ApplyAll()
 		require.NoError(t, err)
 
@@ -126,6 +132,7 @@ func TestDiff(t *testing.T) {
 	}, "there should be no migrations to apply")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// We can now have 2 migrations to rollback
 		migrations, err := engine.Diff(models.Down)
 		require.NoError(t, err)
 
@@ -138,6 +145,8 @@ func TestOppositeMigrations(t *testing.T) {
 	defer h.Teardown(t)
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// Check for applied migrations first, so we can test the opposite
+		// Should return empty since there are no applied migrations
 		migrations, err := engine.driver.AppliedMigrations()
 		require.NoError(t, err)
 
@@ -148,6 +157,7 @@ func TestOppositeMigrations(t *testing.T) {
 	}, "no migrations applied empty list should be returned")
 
 	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// Apply one pending migration, should have one migration to rollback
 		_, err := engine.Apply(1)
 		require.NoError(t, err)
 

@@ -298,6 +298,10 @@ func (m *Morph) GetOppositeMigrations(migrations []*models.Migration) ([]*models
 		rollbackMigrations = append(rollbackMigrations, migration)
 	}
 
+	if len(migrations) != len(rollbackMigrations) {
+		return nil, errors.New("not all migrations have opposite migrations")
+	}
+
 	return rollbackMigrations, nil
 }
 
