@@ -226,6 +226,81 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 	return applied, nil
 }
 
+// Diff returns the difference between the applied migrations and the available migrations.
+func (m *Morph) Diff(mode models.Direction) ([]*models.Migration, error) {
+	appliedMigrations, err := m.driver.AppliedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	if mode == models.Down {
+		sortedMigrations := reverseSortMigrations(appliedMigrations)
+		downMigrations, err := findDownScripts(sortedMigrations, m.source.Migrations())
+		if err != nil {
+			return nil, err
+		}
+
+		diff := make([]*models.Migration, 0, len(downMigrations))
+		for i := 0; i < len(sortedMigrations); i++ {
+			diff = append(diff, downMigrations[sortedMigrations[i].Name])
+		}
+
+		return diff, nil
+	}
+
+	pendingMigrations, err := computePendingMigrations(appliedMigrations, m.source.Migrations())
+	if err != nil {
+		return nil, err
+	}
+
+	var diff []*models.Migration
+	for _, migration := range sortMigrations(pendingMigrations) {
+		if migration.Direction != models.Up {
+			continue
+		}
+		diff = append(diff, migration)
+	}
+
+	return diff, nil
+}
+
+func (m *Morph) GetOppositeMigrations(migrations []*models.Migration) ([]*models.Migration, error) {
+	var direction models.Direction
+	migrationsMap := make(map[string]*models.Migration)
+	for _, migration := range migrations {
+		if direction == "" {
+			direction = migration.Direction
+		}
+		// check if the migrations has the same direction
+		if direction != migration.Direction {
+			return nil, errors.New("migrations have different directions")
+		}
+
+		migrationsMap[migration.Name] = migration
+	}
+
+	rollbackMigrations := make([]*models.Migration, 0, len(migrations))
+	availableMigrations := m.source.Migrations()
+	for _, migration := range availableMigrations {
+		// skip if we have the same direction for the migration
+		// we are looking for opposite direction
+		if migration.Direction == direction {
+			continue
+		}
+
+		// we don't have the migration in the map
+		// so we can't rollback it
+		_, ok := migrationsMap[migration.Name]
+		if !ok {
+			continue
+		}
+
+		rollbackMigrations = append(rollbackMigrations, migration)
+	}
+
+	return rollbackMigrations, nil
+}
+
 func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
 	sort.Slice(migrations, func(i, j int) bool {
 		return migrations[i].Version > migrations[j].Version

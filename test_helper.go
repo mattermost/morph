@@ -1,4 +1,3 @@
-// nolint
 package morph
 
 import (
@@ -86,10 +85,13 @@ func newTestHelper(t *testing.T, options ...EngineOption) *testHelper {
 	return helper
 }
 
-func (h *testHelper) CreateBasicMigrations(t *testing.T) {
+// creates 3 new migrations
+func (h *testHelper) CreateBasicMigrations(t *testing.T) *testHelper {
 	h.AddMigration(t, "create_table_1")
 	h.AddMigration(t, "create_table_2")
 	h.AddMigration(t, "create_table_3")
+
+	return h
 }
 
 // AddMigration adds a dummy migration to the test helper. It is important to add

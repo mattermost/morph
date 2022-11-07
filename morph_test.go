@@ -9,6 +9,7 @@ import (
 	"github.com/mattermost/morph/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
 
@@ -47,4 +48,144 @@ func TestSortMigrations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyAll(t *testing.T) {
+	h := newTestHelper(t)
+	defer h.Teardown(t)
+
+	h.AddMigration(t, "test_migration")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		err := engine.ApplyAll()
+		require.NoError(t, err)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+	})
+}
+
+func TestApply(t *testing.T) {
+	h := newTestHelper(t)
+	defer h.Teardown(t)
+
+	h.AddMigration(t, "test_migration_2")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+	})
+}
+
+func TestDiff(t *testing.T) {
+	h := newTestHelper(t)
+	defer h.Teardown(t)
+
+	h.AddMigration(t, "test_migration_3")
+	h.AddMigration(t, "test_migration_4")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		migrations, err := engine.Diff(models.Up)
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 2)
+	}, "should have 1 migration to apply")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		migrations, err := engine.Diff(models.Down)
+		require.NoError(t, err)
+
+		require.Empty(t, migrations)
+	}, "should return an empty list for down migrations")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		migrations, err := engine.Diff(models.Up)
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+	}, "there should only one migration to apply")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		err := engine.ApplyAll()
+		require.NoError(t, err)
+
+		migrations, err := engine.Diff(models.Up)
+		require.NoError(t, err)
+
+		require.Empty(t, migrations)
+	}, "there should be no migrations to apply")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		migrations, err := engine.Diff(models.Down)
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 2)
+	}, "should have 2 migrations to downgrade")
+}
+
+func TestOppositeMigrations(t *testing.T) {
+	h := newTestHelper(t).CreateBasicMigrations(t)
+	defer h.Teardown(t)
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		migrations, err = engine.GetOppositeMigrations(migrations)
+		require.NoError(t, err)
+
+		require.Empty(t, migrations)
+	}, "no migrations applied empty list should be returned")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		rollbackMigrations, err := engine.GetOppositeMigrations(migrations)
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+		require.Equal(t, models.Down, rollbackMigrations[0].Direction)
+		require.Equal(t, migrations[0].Name, rollbackMigrations[0].Name)
+	}, "one migration applied, reverse migration should be returned")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		migrations := []*models.Migration{
+			{Name: "202103221321_migration_1", Direction: models.Up},
+			{Name: "202103221400_migration_2", Direction: models.Down},
+		}
+		rollbackMigrations, err := engine.GetOppositeMigrations(migrations)
+		require.EqualError(t, err, "migrations have different directions")
+		require.Empty(t, rollbackMigrations)
+	}, "error when migrations have different directions")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		err := engine.ApplyAll()
+		require.NoError(t, err)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		rollbackMigrations, err := engine.GetOppositeMigrations(migrations)
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 3)
+		for i := range rollbackMigrations {
+			require.Equal(t, models.Down, rollbackMigrations[i].Direction)
+			require.Equal(t, migrations[i].Name, rollbackMigrations[i].Name)
+		}
+	})
 }
