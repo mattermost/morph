@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 
@@ -34,6 +36,7 @@ type postgres struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *driverConfig
+	t      *template.Template
 }
 
 func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
@@ -55,6 +58,7 @@ func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
 		conn:   conn,
 		db:     dbInstance,
 		config: driverConfig,
+		t:      template.New("template"),
 	}, nil
 }
 
@@ -98,6 +102,7 @@ func Open(connURL string) (drivers.Driver, error) {
 		db:     db,
 		config: driverConfig,
 		conn:   conn,
+		t:      template.New("template"),
 	}, nil
 }
 
@@ -205,6 +210,24 @@ func (pg *postgres) Close() error {
 func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
 	query := migration.Query()
 
+	t, err := pg.t.Parse(query)
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while parsing the query template",
+		}
+	}
+
+	var buf strings.Builder
+	if err2 := t.Execute(&buf, map[string]interface{}{"SchemaName": pg.config.schemaName}); err2 != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "error while executing the query template",
+		}
+	}
+
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -218,7 +241,7 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 		}
 	}
 
-	if err = executeQuery(transaction, query); err != nil {
+	if err = executeQuery(transaction, buf.String()); err != nil {
 		return err
 	}
 
