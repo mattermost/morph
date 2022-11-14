@@ -248,7 +248,7 @@ func generateScriptCmdF(cmd *cobra.Command, args []string) {
 			fileName = strings.Join([]string{date.Format(tf), fileName}, "_")
 		}
 	} else if seq, _ := cmd.Flags().GetBool("sequence"); seq {
-		next, err := sequelNumber(dir, extension, driver)
+		next, err := sequenceNumber(dir, extension, driver)
 		if err != nil {
 			cmd.PrintErrln(err)
 			return
@@ -317,7 +317,7 @@ func generatePlanCmdF(cmd *cobra.Command, args []string) {
 	}
 }
 
-func sequelNumber(dir, extension, driver string) (int, error) {
+func sequenceNumber(dir, extension, driver string) (int, error) {
 	matches, err := filepath.Glob(filepath.Join(dir, driver, "*"+extension))
 	if err != nil {
 		return 0, err
