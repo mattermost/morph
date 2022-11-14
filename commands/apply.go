@@ -2,9 +2,13 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 
 	"github.com/mattermost/morph"
 	"github.com/mattermost/morph/apply"
+	"github.com/mattermost/morph/models"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +34,7 @@ func ApplyCmd() *cobra.Command {
 		UpApplyCmd(),
 		DownApplyCmd(),
 		MigrateApplyCmd(),
+		PlanApplyCmd(),
 	)
 
 	return cmd
@@ -67,6 +72,19 @@ func MigrateApplyCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
+}
+
+func PlanApplyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "plan <file name>",
+		Short:         "Apply the plan",
+		RunE:          planApplyCmdF,
+		SilenceUsage:  true,
+		SilenceErrors: false,
+	}
+	cmd.Flags().String("plan", "plan.morph", "apply plan")
+
+	return cmd
 }
 
 func upApplyCmdF(cmd *cobra.Command, _ []string) error {
@@ -126,6 +144,38 @@ func migrateApplyCmdF(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	morph.SuccessLogger.Println("Pending migrations applied.")
+
+	return nil
+}
+
+func planApplyCmdF(cmd *cobra.Command, args []string) error {
+	dsn, _ := cmd.Flags().GetString("dsn")
+	driverName, _ := cmd.Flags().GetString("driver")
+	path, _ := cmd.Flags().GetString("path")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+	tableName, _ := cmd.Flags().GetString("migrations-table")
+	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	f, err := os.Open(args[0])
+	if err != nil {
+		return err
+	}
+
+	var plan models.Plan
+	err = json.NewDecoder(f).Decode(&plan)
+	if err != nil {
+		return err
+	}
+
+	morph.InfoLogger.Printf("Attempting to apply plan...\n")
+	err = apply.Plan(ctx, &plan, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error applying plan: %s", err.Error())
+		return err
+	}
+	morph.InfoLogger.Printf("Successfully applied the plan.\n")
 
 	return nil
 }

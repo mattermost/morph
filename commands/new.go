@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,8 @@ import (
 	"time"
 
 	"github.com/mattermost/morph"
+	"github.com/mattermost/morph/apply"
+	"github.com/mattermost/morph/models"
 	"github.com/spf13/cobra"
 
 	. "github.com/dave/jennifer/jen"
@@ -28,6 +32,7 @@ func NewCmd() *cobra.Command {
 	cmd.AddCommand(
 		NewDriverCmd(),
 		NewScriptCmd(),
+		NewPlanCmd(),
 	)
 
 	return cmd
@@ -59,6 +64,33 @@ func NewScriptCmd() *cobra.Command {
 	cmd.Flags().StringP("timezone", "z", "utc", "time zone to be used for timestamps.")
 	cmd.Flags().BoolP("sequence", "s", false, "a sequence number prefix will be added to migration file if set.")
 	_ = cmd.MarkFlagRequired("driver")
+
+	return cmd
+}
+
+func NewPlanCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "plan <file name>",
+		Short:   "Generates new plan for the migration files with revert steps",
+		Example: "morph new plan plan --driver postgresql --dsn postgres://localhost:5432/morph --path db/migrations",
+		Args:    cobra.ExactArgs(1),
+		Run:     generatePlanCmdF,
+	}
+
+	cmd.PersistentFlags().StringP("direction", "w", "up", "the direction of the migration")
+	cmd.Flags().IntP("number", "n", 0, "plan for only N migrations")
+
+	cmd.PersistentFlags().StringP("driver", "d", "", "the database driver of the migrations")
+	_ = cmd.MarkPersistentFlagRequired("driver")
+	cmd.PersistentFlags().String("dsn", "", "the dsn of the database")
+	_ = cmd.MarkPersistentFlagRequired("dsn")
+
+	cmd.PersistentFlags().StringP("path", "p", "", "the source path of the migrations")
+	_ = cmd.MarkPersistentFlagRequired("path")
+
+	cmd.PersistentFlags().IntP("timeout", "t", 60, "the timeout in seconds for each migration file to run")
+	cmd.PersistentFlags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
+	cmd.PersistentFlags().StringP("lock-key", "l", "mutex_migrations", "the name of the mutex key")
 
 	return cmd
 }
@@ -246,6 +278,42 @@ func generateScriptCmdF(cmd *cobra.Command, args []string) {
 			return
 		}
 		f.Close()
+	}
+}
+
+func generatePlanCmdF(cmd *cobra.Command, args []string) {
+	dsn, _ := cmd.Flags().GetString("dsn")
+	driverName, _ := cmd.Flags().GetString("driver")
+	path, _ := cmd.Flags().GetString("path")
+	direction, _ := cmd.Flags().GetString("direction")
+	direction = strings.ToLower(direction)
+	limit, _ := cmd.Flags().GetInt("number")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+	tableName, _ := cmd.Flags().GetString("migrations-table")
+	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	d := models.Up
+	if direction == "down" {
+		d = models.Down
+	}
+
+	plan, err := apply.GeneratePlan(ctx, d, limit, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error generating plan: %s", err.Error())
+		return
+	}
+
+	file, err := json.MarshalIndent(plan, "", " ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error generating plan: %s", err.Error())
+		return
+	}
+
+	err = os.WriteFile(args[0], file, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error generating plan: %s", err.Error())
 	}
 }
 

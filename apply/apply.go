@@ -9,6 +9,7 @@ import (
 	"github.com/mattermost/morph/drivers/mysql"
 	"github.com/mattermost/morph/drivers/postgres"
 	"github.com/mattermost/morph/drivers/sqlite"
+	"github.com/mattermost/morph/models"
 	"github.com/mattermost/morph/sources/file"
 )
 
@@ -40,6 +41,35 @@ func Down(ctx context.Context, limit int, dsn, driverName, path string, options 
 	defer engine.Close()
 
 	return engine.ApplyDown(limit)
+}
+
+func Plan(ctx context.Context, plan *models.Plan, dsn, driverName, path string, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+	if err != nil {
+		return err
+	}
+	defer engine.Close()
+
+	return engine.ApplyPlan(plan)
+}
+
+func GeneratePlan(ctx context.Context, direction models.Direction, limit int, dsn, driverName, path string, options ...morph.EngineOption) (*models.Plan, error) {
+	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+	if err != nil {
+		return nil, err
+	}
+	defer engine.Close()
+
+	migrations, err := engine.Diff(direction)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 0 && len(migrations) > limit {
+		migrations = migrations[:limit]
+	}
+
+	return engine.GeneratePlan(migrations)
 }
 
 func initializeEngine(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {
