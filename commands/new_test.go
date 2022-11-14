@@ -13,7 +13,7 @@ import (
 
 func TestGenerateCMD(t *testing.T) {
 	dir := "./tmp"
-	cmd := GenerateCmd()
+	cmd := NewScriptCmd()
 	cmd.PersistentFlags().String("dir", ".", "the migrations directory")
 
 	t.Run("should generate migration files correctly when using --sequence", func(t *testing.T) {
