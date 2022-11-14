@@ -325,47 +325,54 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 	}
 
 	revertMigrations := make([]*models.Migration, 0, len(plan.RevertMigrations))
+	var err error
+	var failIndex int
 
 	for i := range plan.Migrations {
 		// add to the revert queue
 		for _, migration := range plan.RevertMigrations {
-			if migration.Name == plan.Migrations[i].Name {
+			if migration.Name == plan.Migrations[i].Name && migration.Version == plan.Migrations[i].Version {
 				revertMigrations = append(revertMigrations, migration)
 				break
 			}
 		}
 
-		err := m.apply(plan.Migrations[i], true)
+		err = m.apply(plan.Migrations[i], true)
 		if err != nil {
-			// log the fail step
-			m.config.Logger.Printf("migration %s failed, starting rollback", plan.Migrations[i].Name)
-
-			for j := len(revertMigrations) - 1; j >= 0; j-- {
-				// There is a special case when we are reverting a rollback
-				// We shouldn't save the version if we are trying to restore the last applied migration
-				// here is an example, lets say we have following migrations in the applied migrations table:
-				// migration_1, migration_2, migration_3
-				// Once we initiate the rollback, we will have the following:
-				// migration_3, migration_2, migration_1 (to rollback)
-				// Let's say we have a bug in migration_2 and failed.
-				// We don't remove that version from the database, because migration is not successfully rolled back.
-				// So in this case, we need to apply the migration_2 (up) but it will be in the migrations table.
-				// Therefore we are not saving the version in the database because it will fail on the save version step.
-				skipSave := revertMigrations[j].Direction == models.Up && j == len(revertMigrations)-1
-				rErr := m.apply(revertMigrations[j], !skipSave)
-				if rErr != nil {
-					return fmt.Errorf("could not rollback migrations after trying to migrate: %w", rErr)
-				}
-
-				m.config.Logger.Printf("successfully rolled back migration: %s", revertMigrations[j].Name)
-			}
-
-			// return error in any case
-			return fmt.Errorf("could not apply migration: %w", err)
+			break
 		}
+
+		failIndex = i
 	}
 
-	return nil
+	if err == nil {
+		return nil
+	}
+
+	m.config.Logger.Printf("migration %s failed, starting rollback", plan.Migrations[failIndex].Name)
+
+	for j := len(revertMigrations) - 1; j >= 0; j-- {
+		// There is a special case when we are reverting a rollback
+		// We shouldn't save the version if we are trying to restore the last applied migration
+		// here is an example, lets say we have following migrations in the applied migrations table:
+		// migration_1, migration_2, migration_3
+		// Once we initiate the rollback, we will have the following:
+		// migration_3, migration_2, migration_1 (to rollback)
+		// Let's say we have a bug in migration_2 and failed.
+		// We don't remove that version from the database, because migration is not successfully rolled back.
+		// So in this case, we need to apply the migration_2 (up) but it will be in the migrations table.
+		// Therefore we are not saving the version in the database because it will fail on the save version step.
+		skipSave := revertMigrations[j].Direction == models.Up && j == len(revertMigrations)-1
+		rErr := m.apply(revertMigrations[j], !skipSave)
+		if rErr != nil {
+			return fmt.Errorf("could not rollback migrations after trying to migrate: %w", rErr)
+		}
+
+		m.config.Logger.Printf("successfully rolled back migration: %s", revertMigrations[j].Name)
+	}
+
+	// return error in any case
+	return fmt.Errorf("could not apply migration: %w", err)
 }
 
 func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
