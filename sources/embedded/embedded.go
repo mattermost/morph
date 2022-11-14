@@ -3,7 +3,7 @@ package embedded
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/mattermost/morph/models"
 	"github.com/mattermost/morph/sources"
@@ -40,7 +40,7 @@ func WithInstance(assetSource *AssetSource) (sources.Source, error) {
 			return nil, fmt.Errorf("cannot read migration %q: %w", filename, err)
 		}
 
-		m, err := models.NewMigration(ioutil.NopCloser(bytes.NewReader(migrationBytes)), filename)
+		m, err := models.NewMigration(io.NopCloser(bytes.NewReader(migrationBytes)), filename)
 		if err != nil {
 			return nil, fmt.Errorf("could not create migration: %w", err)
 		}

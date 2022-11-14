@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -350,10 +349,10 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	sqliteDriver := driver.(*sqlite)
+	sqliteDriver.config.closeDBonClose = true
+
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
@@ -362,12 +361,12 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 }
 
 func TestSqliteTestSuite(t *testing.T) {
-	defaultDBFile, err := ioutil.TempFile("", "morph-default.db")
+	defaultDBFile, err := os.CreateTemp("", "morph-default.db")
 	require.NoError(t, err)
 	info, err := defaultDBFile.Stat()
 	require.NoError(t, err)
 
-	testDBFile, err := ioutil.TempFile("", "morph-test.db")
+	testDBFile, err := os.CreateTemp("", "morph-test.db")
 	require.NoError(t, err)
 	tfInfo, err := testDBFile.Stat()
 	require.NoError(t, err)
