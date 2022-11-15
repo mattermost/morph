@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattermost/morph/sources/file"
 )
 
-var migrationProgressStart = "==  %s: migrating  ================================================="
+var migrationProgressStart = "==  %s: migrating (%s)  ============================================="
 var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
 
 const maxProgressLogLength = 100
@@ -143,7 +143,8 @@ func (m *Morph) Close() error {
 func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) error {
 	start := time.Now()
 	migrationName := migration.Name
-	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName)))
+	direction := migration.Direction
+	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName, direction)))
 	if !dryRun {
 		if err := m.driver.Apply(migration, saveVersion); err != nil {
 			return err

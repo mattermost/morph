@@ -30,6 +30,8 @@ func ApplyCmd() *cobra.Command {
 	cmd.PersistentFlags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
 	cmd.PersistentFlags().StringP("lock-key", "l", "mutex_migrations", "the name of the mutex key")
 
+	cmd.PersistentFlags().Bool("dry-run", false, "prints the plan without applying it")
+
 	cmd.AddCommand(
 		UpApplyCmd(),
 		DownApplyCmd(),
@@ -95,11 +97,17 @@ func upApplyCmdF(cmd *cobra.Command, _ []string) error {
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
 	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	morph.InfoLogger.Printf("Attempting to apply %d migrations...\n", steps)
-	n, err := apply.Up(ctx, steps, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	n, err := apply.Up(ctx, steps, dsn, driverName, path,
+		morph.SetMigrationTableName(tableName),
+		morph.SetStatementTimeoutInSeconds(timeout),
+		morph.WithLock(mutexKey),
+		morph.SetDryRun(dryRun),
+	)
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
 	} else if n == 0 {
@@ -116,11 +124,17 @@ func downApplyCmdF(cmd *cobra.Command, _ []string) error {
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
 	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	morph.InfoLogger.Printf("Attempting to apply  %d migrations...\n", steps)
-	n, err := apply.Down(ctx, steps, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	n, err := apply.Down(ctx, steps, dsn, driverName, path,
+		morph.SetMigrationTableName(tableName),
+		morph.SetStatementTimeoutInSeconds(timeout),
+		morph.WithLock(mutexKey),
+		morph.SetDryRun(dryRun),
+	)
 	if n > 0 {
 		morph.SuccessLogger.Printf("%d migrations applied.\n", n)
 	} else if n == 0 {
@@ -136,11 +150,17 @@ func migrateApplyCmdF(cmd *cobra.Command, _ []string) error {
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
 	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	morph.InfoLogger.Println("Applying all pending migrations...")
-	if err := apply.Migrate(ctx, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey)); err != nil {
+	if err := apply.Migrate(ctx, dsn, driverName, path,
+		morph.SetMigrationTableName(tableName),
+		morph.SetStatementTimeoutInSeconds(timeout),
+		morph.WithLock(mutexKey),
+		morph.SetDryRun(dryRun),
+	); err != nil {
 		return err
 	}
 	morph.SuccessLogger.Println("Pending migrations applied.")
@@ -155,6 +175,7 @@ func planApplyCmdF(cmd *cobra.Command, args []string) error {
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	tableName, _ := cmd.Flags().GetString("migrations-table")
 	mutexKey, _ := cmd.Flags().GetString("lock-key")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -170,7 +191,12 @@ func planApplyCmdF(cmd *cobra.Command, args []string) error {
 	}
 
 	morph.InfoLogger.Printf("Attempting to apply plan...\n")
-	err = apply.Plan(ctx, &plan, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	err = apply.Plan(ctx, &plan, dsn, driverName, path,
+		morph.SetMigrationTableName(tableName),
+		morph.SetStatementTimeoutInSeconds(timeout),
+		morph.WithLock(mutexKey),
+		morph.SetDryRun(dryRun),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error applying plan: %s", err.Error())
 		return err
