@@ -1,4 +1,3 @@
-// nolint
 package morph
 
 import (
@@ -23,9 +22,8 @@ import (
 )
 
 const (
-	defaultPostgresDSN = "postgres://morph:morph@localhost/morph_test?sslmode=disable"
+	defaultPostgresDSN = "postgres://morph:morph@localhost:6432/morph_test?sslmode=disable"
 	defaultMySQLDSN    = "morph:morph@tcp(127.0.0.1:3307)/morph_test?multiStatements=true"
-	defaultSQLiteDSN   = "file::memory:?cache=shared"
 )
 
 // query is a map of driver name to a map of direction for the dummy queries
@@ -86,10 +84,13 @@ func newTestHelper(t *testing.T, options ...EngineOption) *testHelper {
 	return helper
 }
 
-func (h *testHelper) CreateBasicMigrations(t *testing.T) {
+// creates 3 new migrations
+func (h *testHelper) CreateBasicMigrations(t *testing.T) *testHelper {
 	h.AddMigration(t, "create_table_1")
 	h.AddMigration(t, "create_table_2")
 	h.AddMigration(t, "create_table_3")
+
+	return h
 }
 
 // AddMigration adds a dummy migration to the test helper. It is important to add

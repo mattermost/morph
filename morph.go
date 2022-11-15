@@ -130,6 +130,20 @@ func (m *Morph) Close() error {
 	return m.driver.Close()
 }
 
+func (m *Morph) apply(migration *models.Migration, saveVersion bool) error {
+	start := time.Now()
+	migrationName := migration.Name
+	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName)))
+	if err := m.driver.Apply(migration, saveVersion); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start)
+	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds()))))
+
+	return nil
+}
+
 // ApplyAll applies all pending migrations.
 func (m *Morph) ApplyAll() error {
 	_, err := m.Apply(-1)
@@ -169,16 +183,10 @@ func (m *Morph) Apply(limit int) (int, error) {
 
 	var applied int
 	for i := 0; i < steps; i++ {
-		start := time.Now()
-		migrationName := migrations[i].Name
-		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName)))
-		if err := m.driver.Apply(migrations[i], true); err != nil {
+		if err := m.apply(migrations[i], true); err != nil {
 			return applied, err
 		}
-
 		applied++
-		elapsed := time.Since(start)
-		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds()))))
 	}
 
 	return applied, nil
@@ -209,21 +217,162 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 
 	var applied int
 	for i := 0; i < steps; i++ {
-		start := time.Now()
 		migrationName := sortedMigrations[i].Name
-		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName)))
-
-		down := downMigrations[migrationName]
-		if err := m.driver.Apply(down, true); err != nil {
+		if err := m.apply(downMigrations[migrationName], true); err != nil {
 			return applied, err
 		}
-
 		applied++
-		elapsed := time.Since(start)
-		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds()))))
 	}
 
 	return applied, nil
+}
+
+// Diff returns the difference between the applied migrations and the available migrations.
+func (m *Morph) Diff(mode models.Direction) ([]*models.Migration, error) {
+	appliedMigrations, err := m.driver.AppliedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	if mode == models.Down {
+		sortedMigrations := reverseSortMigrations(appliedMigrations)
+		downMigrations, err := findDownScripts(sortedMigrations, m.source.Migrations())
+		if err != nil {
+			return nil, err
+		}
+
+		diff := make([]*models.Migration, 0, len(downMigrations))
+		for i := 0; i < len(sortedMigrations); i++ {
+			diff = append(diff, downMigrations[sortedMigrations[i].Name])
+		}
+
+		return diff, nil
+	}
+
+	pendingMigrations, err := computePendingMigrations(appliedMigrations, m.source.Migrations())
+	if err != nil {
+		return nil, err
+	}
+
+	var diff []*models.Migration
+	for _, migration := range sortMigrations(pendingMigrations) {
+		if migration.Direction != models.Up {
+			continue
+		}
+		diff = append(diff, migration)
+	}
+
+	return diff, nil
+}
+
+func (m *Morph) GetOppositeMigrations(migrations []*models.Migration) ([]*models.Migration, error) {
+	var direction models.Direction
+	migrationsMap := make(map[string]*models.Migration)
+	for _, migration := range migrations {
+		if direction == "" {
+			direction = migration.Direction
+		}
+		// check if the migrations has the same direction
+		if direction != migration.Direction {
+			return nil, errors.New("migrations have different directions")
+		}
+
+		migrationsMap[migration.Name] = migration
+	}
+
+	rollbackMigrations := make([]*models.Migration, 0, len(migrations))
+	availableMigrations := m.source.Migrations()
+	for _, migration := range availableMigrations {
+		// skip if we have the same direction for the migration
+		// we are looking for opposite direction
+		if migration.Direction == direction {
+			continue
+		}
+
+		// we don't have the migration in the map
+		// so we can't rollback it
+		_, ok := migrationsMap[migration.Name]
+		if !ok {
+			continue
+		}
+
+		rollbackMigrations = append(rollbackMigrations, migration)
+	}
+
+	if len(migrations) != len(rollbackMigrations) {
+		return nil, errors.New("not all migrations have opposite migrations")
+	}
+
+	return rollbackMigrations, nil
+}
+
+// GeneratePlan returns the plan to apply these migrations and also includes
+// the safe rollback steps for the given migrations.
+func (m *Morph) GeneratePlan(migrations []*models.Migration) (*models.Plan, error) {
+	rollbackMigrations, err := m.GetOppositeMigrations(migrations)
+	if err != nil {
+		return nil, fmt.Errorf("could not get opposite migrations: %w", err)
+	}
+
+	plan := models.NewPlan(migrations, rollbackMigrations)
+
+	return plan, nil
+}
+
+func (m *Morph) ApplyPlan(plan *models.Plan) error {
+	if err := plan.Validate(); err != nil {
+		return fmt.Errorf("invalid plan: %w", err)
+	}
+
+	revertMigrations := make([]*models.Migration, 0, len(plan.RevertMigrations))
+	var err error
+	var failIndex int
+
+	for i := range plan.Migrations {
+		// add to the revert queue
+		for _, migration := range plan.RevertMigrations {
+			if migration.Name == plan.Migrations[i].Name && migration.Version == plan.Migrations[i].Version {
+				revertMigrations = append(revertMigrations, migration)
+				break
+			}
+		}
+
+		err = m.apply(plan.Migrations[i], true)
+		if err != nil {
+			break
+		}
+
+		failIndex = i
+	}
+
+	if err == nil {
+		return nil
+	}
+
+	m.config.Logger.Printf("migration %s failed, starting rollback", plan.Migrations[failIndex].Name)
+
+	for j := len(revertMigrations) - 1; j >= 0; j-- {
+		// There is a special case when we are reverting a rollback
+		// We shouldn't save the version if we are trying to restore the last applied migration
+		// here is an example, lets say we have following migrations in the applied migrations table:
+		// migration_1, migration_2, migration_3
+		// Once we initiate the rollback, we will have the following:
+		// migration_3, migration_2, migration_1 (to rollback)
+		// Let's say we have a bug in migration_2 and failed.
+		// We don't remove that version from the database, because migration is not successfully rolled back.
+		// So in this case, we need to apply the migration_2 (up) but it will be in the migrations table.
+		// Therefore we are not saving the version in the database because it will fail on the save version step.
+		skipSave := revertMigrations[j].Direction == models.Up && j == len(revertMigrations)-1
+		rErr := m.apply(revertMigrations[j], !skipSave)
+		if rErr != nil {
+			return fmt.Errorf("could not rollback migrations after trying to migrate: %w", rErr)
+		}
+
+		m.config.Logger.Printf("successfully rolled back migration: %s", revertMigrations[j].Name)
+	}
+
+	// return error in any case
+	return fmt.Errorf("could not apply migration: %w", err)
 }
 
 func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
