@@ -13,8 +13,14 @@ import (
 	"github.com/mattermost/morph/sources/file"
 )
 
-func Migrate(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) error {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+type ConnectionParameters struct {
+	DSN        string
+	DriverName string
+	SourcePath string
+}
+
+func Migrate(ctx context.Context, params ConnectionParameters, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return err
 	}
@@ -23,8 +29,8 @@ func Migrate(ctx context.Context, dsn, driverName, path string, options ...morph
 	return engine.ApplyAll()
 }
 
-func Up(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func Up(ctx context.Context, limit int, params ConnectionParameters, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -33,8 +39,8 @@ func Up(ctx context.Context, limit int, dsn, driverName, path string, options ..
 	return engine.Apply(limit)
 }
 
-func Down(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func Down(ctx context.Context, limit int, params ConnectionParameters, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -43,8 +49,8 @@ func Down(ctx context.Context, limit int, dsn, driverName, path string, options 
 	return engine.ApplyDown(limit)
 }
 
-func Plan(ctx context.Context, plan *models.Plan, dsn, driverName, path string, options ...morph.EngineOption) error {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func Plan(ctx context.Context, plan *models.Plan, params ConnectionParameters, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return err
 	}
@@ -53,8 +59,8 @@ func Plan(ctx context.Context, plan *models.Plan, dsn, driverName, path string, 
 	return engine.ApplyPlan(plan)
 }
 
-func GeneratePlan(ctx context.Context, direction models.Direction, limit int, dsn, driverName, path string, options ...morph.EngineOption) (*models.Plan, error) {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func GeneratePlan(ctx context.Context, direction models.Direction, limit int, params ConnectionParameters, options ...morph.EngineOption) (*models.Plan, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return nil, err
 	}

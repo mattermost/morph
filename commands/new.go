@@ -282,15 +282,9 @@ func generateScriptCmdF(cmd *cobra.Command, args []string) {
 }
 
 func generatePlanCmdF(cmd *cobra.Command, args []string) {
-	dsn, _ := cmd.Flags().GetString("dsn")
-	driverName, _ := cmd.Flags().GetString("driver")
-	path, _ := cmd.Flags().GetString("path")
 	direction, _ := cmd.Flags().GetString("direction")
 	direction = strings.ToLower(direction)
 	limit, _ := cmd.Flags().GetInt("number")
-	timeout, _ := cmd.Flags().GetInt("timeout")
-	tableName, _ := cmd.Flags().GetString("migrations-table")
-	mutexKey, _ := cmd.Flags().GetString("lock-key")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -299,7 +293,7 @@ func generatePlanCmdF(cmd *cobra.Command, args []string) {
 		d = models.Down
 	}
 
-	plan, err := apply.GeneratePlan(ctx, d, limit, dsn, driverName, path, morph.SetMigrationTableName(tableName), morph.SetStatementTimeoutInSeconds(timeout), morph.WithLock(mutexKey))
+	plan, err := apply.GeneratePlan(ctx, d, limit, parseEssentialFlags(cmd), parseEngineFlags(cmd)...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error generating plan: %s", err.Error())
 		return
