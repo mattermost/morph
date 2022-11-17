@@ -68,6 +68,23 @@ func NewScriptCmd() *cobra.Command {
 	return cmd
 }
 
+func NewGenerateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:        "generate",
+		Run:        generateScriptCmdF,
+		Deprecated: "use `morph new script` instead.",
+	}
+
+	cmd.Flags().StringP("driver", "d", "", "the driver to use.")
+	cmd.Flags().BoolP("timestamp", "t", false, "a timestamp prefix will be added to migration file if set.")
+	cmd.Flags().StringP("timeformat", "f", "unix", "timestamp format to be used for timestamps.")
+	cmd.Flags().StringP("timezone", "z", "utc", "time zone to be used for timestamps.")
+	cmd.Flags().BoolP("sequence", "s", false, "a sequence number prefix will be added to migration file if set.")
+	_ = cmd.MarkFlagRequired("driver")
+
+	return cmd
+}
+
 func NewPlanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "plan <file name>",
