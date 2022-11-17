@@ -321,13 +321,13 @@ func (m *Morph) GetOppositeMigrations(migrations []*models.Migration) ([]*models
 
 // GeneratePlan returns the plan to apply these migrations and also includes
 // the safe rollback steps for the given migrations.
-func (m *Morph) GeneratePlan(migrations []*models.Migration) (*models.Plan, error) {
+func (m *Morph) GeneratePlan(migrations []*models.Migration, auto bool) (*models.Plan, error) {
 	rollbackMigrations, err := m.GetOppositeMigrations(migrations)
 	if err != nil {
 		return nil, fmt.Errorf("could not get opposite migrations: %w", err)
 	}
 
-	plan := models.NewPlan(migrations, rollbackMigrations)
+	plan := models.NewPlan(migrations, rollbackMigrations, auto)
 
 	return plan, nil
 }
@@ -360,6 +360,10 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 
 	if err == nil {
 		return nil
+	}
+
+	if !plan.Auto {
+		return err
 	}
 
 	m.config.Logger.Printf("migration %s failed, starting rollback", plan.Migrations[failIndex].Name)

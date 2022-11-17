@@ -77,20 +77,21 @@ func NewPlanCmd() *cobra.Command {
 		Run:     generatePlanCmdF,
 	}
 
-	cmd.PersistentFlags().StringP("direction", "w", "up", "the direction of the migration")
+	cmd.Flags().StringP("direction", "w", "up", "the direction of the migration")
 	cmd.Flags().IntP("number", "n", 0, "plan for only N migrations")
+	cmd.Flags().Bool("auto", true, "generate plan with auto revert steps")
 
-	cmd.PersistentFlags().StringP("driver", "d", "", "the database driver of the migrations")
-	_ = cmd.MarkPersistentFlagRequired("driver")
-	cmd.PersistentFlags().String("dsn", "", "the dsn of the database")
-	_ = cmd.MarkPersistentFlagRequired("dsn")
+	cmd.Flags().StringP("driver", "d", "", "the database driver of the migrations")
+	_ = cmd.MarkFlagRequired("driver")
+	cmd.Flags().String("dsn", "", "the dsn of the database")
+	_ = cmd.MarkFlagRequired("dsn")
 
-	cmd.PersistentFlags().StringP("path", "p", "", "the source path of the migrations")
-	_ = cmd.MarkPersistentFlagRequired("path")
+	cmd.Flags().StringP("path", "p", "", "the source path of the migrations")
+	_ = cmd.MarkFlagRequired("path")
 
-	cmd.PersistentFlags().IntP("timeout", "t", 60, "the timeout in seconds for each migration file to run")
-	cmd.PersistentFlags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
-	cmd.PersistentFlags().StringP("lock-key", "l", "mutex_migrations", "the name of the mutex key")
+	cmd.Flags().IntP("timeout", "t", 60, "the timeout in seconds for each migration file to run")
+	cmd.Flags().StringP("migrations-table", "m", "db_migrations", "the name of the migrations table")
+	cmd.Flags().StringP("lock-key", "l", "mutex_migrations", "the name of the mutex key")
 
 	return cmd
 }
@@ -285,6 +286,7 @@ func generatePlanCmdF(cmd *cobra.Command, args []string) {
 	direction, _ := cmd.Flags().GetString("direction")
 	direction = strings.ToLower(direction)
 	limit, _ := cmd.Flags().GetInt("number")
+	auto, _ := cmd.Flags().GetBool("auto")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -293,7 +295,7 @@ func generatePlanCmdF(cmd *cobra.Command, args []string) {
 		d = models.Down
 	}
 
-	plan, err := apply.GeneratePlan(ctx, d, limit, parseEssentialFlags(cmd), parseEngineFlags(cmd)...)
+	plan, err := apply.GeneratePlan(ctx, d, limit, auto, parseEssentialFlags(cmd), parseEngineFlags(cmd)...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error generating plan: %s", err.Error())
 		return

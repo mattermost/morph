@@ -59,7 +59,7 @@ func Plan(ctx context.Context, plan *models.Plan, params ConnectionParameters, o
 	return engine.ApplyPlan(plan)
 }
 
-func GeneratePlan(ctx context.Context, direction models.Direction, limit int, params ConnectionParameters, options ...morph.EngineOption) (*models.Plan, error) {
+func GeneratePlan(ctx context.Context, direction models.Direction, limit int, auto bool, params ConnectionParameters, options ...morph.EngineOption) (*models.Plan, error) {
 	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func GeneratePlan(ctx context.Context, direction models.Direction, limit int, pa
 		migrations = migrations[:limit]
 	}
 
-	return engine.GeneratePlan(migrations)
+	return engine.GeneratePlan(migrations, auto)
 }
 
 func initializeEngine(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {

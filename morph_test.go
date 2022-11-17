@@ -210,7 +210,7 @@ func TestGeneratePlan(t *testing.T) {
 		migrations, err := engine.Diff(models.Up)
 		require.NoError(t, err)
 
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		require.ElementsMatch(t, plan.Migrations, migrations)
@@ -226,7 +226,7 @@ func TestApplyPlan(t *testing.T) {
 		migrations, err := engine.Diff(models.Up)
 		require.NoError(t, err)
 
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		err = engine.ApplyPlan(plan)
@@ -256,7 +256,7 @@ func TestApplyPlan(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, migrations, 4)
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		err = engine.ApplyPlan(plan)
@@ -276,7 +276,7 @@ func TestApplyPlan(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, migrations, 4)
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		err = engine.ApplyPlan(plan)
@@ -302,7 +302,7 @@ func TestApplyPlan(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, migrations, 2)
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		err = engine.ApplyPlan(plan)
@@ -329,7 +329,7 @@ func TestApplyPlan(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, migrations, 3)
 
-		plan, err := engine.GeneratePlan(migrations)
+		plan, err := engine.GeneratePlan(migrations, true)
 		require.NoError(t, err)
 
 		err = engine.ApplyPlan(plan)
