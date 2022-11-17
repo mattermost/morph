@@ -85,7 +85,7 @@ func PlanApplyCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
-	cmd.Flags().String("plan", "plan.morph", "apply plan")
+	cmd.Flags().Bool("revert", false, "reverts an existing plan")
 
 	return cmd
 }
@@ -146,6 +146,12 @@ func planApplyCmdF(cmd *cobra.Command, args []string) error {
 	err = json.NewDecoder(f).Decode(&plan)
 	if err != nil {
 		return err
+	}
+
+	revert, _ := cmd.Flags().GetBool("revert")
+
+	if revert {
+		morph.SwapPlanDirection(&plan)
 	}
 
 	morph.InfoLogger.Printf("Attempting to apply plan...\n")

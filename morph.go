@@ -388,6 +388,21 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 	return fmt.Errorf("could not apply migration: %w", err)
 }
 
+// SwapPlanDirection alters the plan direction to the opposite direction.
+func SwapPlanDirection(plan *models.Plan) {
+	// we need to ensure that the intended migrations for applying is in the
+	// correct order.
+	plan.RevertMigrations = sortMigrations(plan.RevertMigrations)
+	if len(plan.RevertMigrations) > 0 && plan.RevertMigrations[0].Direction == models.Down {
+		plan.RevertMigrations = reverseSortMigrations(plan.RevertMigrations)
+	}
+
+	// we copy the migrations to set them as revert migrations in the plan
+	migrations := plan.Migrations
+	plan.Migrations = plan.RevertMigrations
+	plan.RevertMigrations = migrations
+}
+
 func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
 	sort.Slice(migrations, func(i, j int) bool {
 		return migrations[i].Version > migrations[j].Version
