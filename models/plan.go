@@ -17,11 +17,12 @@ type Plan struct {
 	RevertMigrations []*Migration
 }
 
-func NewPlan(migrations, rollback []*Migration) *Plan {
+func NewPlan(migrations, rollback []*Migration, auto bool) *Plan {
 	return &Plan{
 		Version:          CurrentPlanVersion,
 		Migrations:       migrations,
 		RevertMigrations: rollback,
+		Auto:             auto,
 	}
 }
 

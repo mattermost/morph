@@ -9,11 +9,18 @@ import (
 	"github.com/mattermost/morph/drivers/mysql"
 	"github.com/mattermost/morph/drivers/postgres"
 	"github.com/mattermost/morph/drivers/sqlite"
+	"github.com/mattermost/morph/models"
 	"github.com/mattermost/morph/sources/file"
 )
 
-func Migrate(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) error {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+type ConnectionParameters struct {
+	DSN        string
+	DriverName string
+	SourcePath string
+}
+
+func Migrate(ctx context.Context, params ConnectionParameters, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return err
 	}
@@ -22,8 +29,8 @@ func Migrate(ctx context.Context, dsn, driverName, path string, options ...morph
 	return engine.ApplyAll()
 }
 
-func Up(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func Up(ctx context.Context, limit int, params ConnectionParameters, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return -1, err
 	}
@@ -32,14 +39,43 @@ func Up(ctx context.Context, limit int, dsn, driverName, path string, options ..
 	return engine.Apply(limit)
 }
 
-func Down(ctx context.Context, limit int, dsn, driverName, path string, options ...morph.EngineOption) (int, error) {
-	engine, err := initializeEngine(ctx, dsn, driverName, path, options...)
+func Down(ctx context.Context, limit int, params ConnectionParameters, options ...morph.EngineOption) (int, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
 	if err != nil {
 		return -1, err
 	}
 	defer engine.Close()
 
 	return engine.ApplyDown(limit)
+}
+
+func Plan(ctx context.Context, plan *models.Plan, params ConnectionParameters, options ...morph.EngineOption) error {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
+	if err != nil {
+		return err
+	}
+	defer engine.Close()
+
+	return engine.ApplyPlan(plan)
+}
+
+func GeneratePlan(ctx context.Context, direction models.Direction, limit int, auto bool, params ConnectionParameters, options ...morph.EngineOption) (*models.Plan, error) {
+	engine, err := initializeEngine(ctx, params.DSN, params.DriverName, params.SourcePath, options...)
+	if err != nil {
+		return nil, err
+	}
+	defer engine.Close()
+
+	migrations, err := engine.Diff(direction)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 0 && len(migrations) > limit {
+		migrations = migrations[:limit]
+	}
+
+	return engine.GeneratePlan(migrations, auto)
 }
 
 func initializeEngine(ctx context.Context, dsn, driverName, path string, options ...morph.EngineOption) (*morph.Morph, error) {

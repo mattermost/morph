@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattermost/morph/sources/file"
 )
 
-var migrationProgressStart = "==  %s: migrating  ================================================="
+var migrationProgressStart = "==  %s: migrating (%s)  ============================================="
 var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
 
 const maxProgressLogLength = 100
@@ -37,6 +37,7 @@ type Morph struct {
 type Config struct {
 	Logger  Logger
 	LockKey string
+	DryRun  bool
 }
 
 type EngineOption func(*Morph) error
@@ -66,6 +67,15 @@ func SetStatementTimeoutInSeconds(n int) EngineOption {
 func WithLock(key string) EngineOption {
 	return func(m *Morph) error {
 		m.config.LockKey = key
+		return nil
+	}
+}
+
+// SetDryRun will not execute any migrations if set to true, but
+// will still log the migrations that would be executed.
+func SetDryRun(enable bool) EngineOption {
+	return func(m *Morph) error {
+		m.config.DryRun = enable
 		return nil
 	}
 }
@@ -130,12 +140,15 @@ func (m *Morph) Close() error {
 	return m.driver.Close()
 }
 
-func (m *Morph) apply(migration *models.Migration, saveVersion bool) error {
+func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) error {
 	start := time.Now()
 	migrationName := migration.Name
-	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName)))
-	if err := m.driver.Apply(migration, saveVersion); err != nil {
-		return err
+	direction := migration.Direction
+	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName, direction)))
+	if !dryRun {
+		if err := m.driver.Apply(migration, saveVersion); err != nil {
+			return err
+		}
 	}
 
 	elapsed := time.Since(start)
@@ -183,7 +196,7 @@ func (m *Morph) Apply(limit int) (int, error) {
 
 	var applied int
 	for i := 0; i < steps; i++ {
-		if err := m.apply(migrations[i], true); err != nil {
+		if err := m.apply(migrations[i], true, m.config.DryRun); err != nil {
 			return applied, err
 		}
 		applied++
@@ -218,7 +231,7 @@ func (m *Morph) ApplyDown(limit int) (int, error) {
 	var applied int
 	for i := 0; i < steps; i++ {
 		migrationName := sortedMigrations[i].Name
-		if err := m.apply(downMigrations[migrationName], true); err != nil {
+		if err := m.apply(downMigrations[migrationName], true, m.config.DryRun); err != nil {
 			return applied, err
 		}
 		applied++
@@ -308,13 +321,13 @@ func (m *Morph) GetOppositeMigrations(migrations []*models.Migration) ([]*models
 
 // GeneratePlan returns the plan to apply these migrations and also includes
 // the safe rollback steps for the given migrations.
-func (m *Morph) GeneratePlan(migrations []*models.Migration) (*models.Plan, error) {
+func (m *Morph) GeneratePlan(migrations []*models.Migration, auto bool) (*models.Plan, error) {
 	rollbackMigrations, err := m.GetOppositeMigrations(migrations)
 	if err != nil {
 		return nil, fmt.Errorf("could not get opposite migrations: %w", err)
 	}
 
-	plan := models.NewPlan(migrations, rollbackMigrations)
+	plan := models.NewPlan(migrations, rollbackMigrations, auto)
 
 	return plan, nil
 }
@@ -337,7 +350,7 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 			}
 		}
 
-		err = m.apply(plan.Migrations[i], true)
+		err = m.apply(plan.Migrations[i], true, m.config.DryRun)
 		if err != nil {
 			break
 		}
@@ -347,6 +360,10 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 
 	if err == nil {
 		return nil
+	}
+
+	if !plan.Auto {
+		return err
 	}
 
 	m.config.Logger.Printf("migration %s failed, starting rollback", plan.Migrations[failIndex].Name)
@@ -363,7 +380,7 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 		// So in this case, we need to apply the migration_2 (up) but it will be in the migrations table.
 		// Therefore we are not saving the version in the database because it will fail on the save version step.
 		skipSave := revertMigrations[j].Direction == models.Up && j == len(revertMigrations)-1
-		rErr := m.apply(revertMigrations[j], !skipSave)
+		rErr := m.apply(revertMigrations[j], !skipSave, m.config.DryRun)
 		if rErr != nil {
 			return fmt.Errorf("could not rollback migrations after trying to migrate: %w", rErr)
 		}
@@ -373,6 +390,21 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 
 	// return error in any case
 	return fmt.Errorf("could not apply migration: %w", err)
+}
+
+// SwapPlanDirection alters the plan direction to the opposite direction.
+func SwapPlanDirection(plan *models.Plan) {
+	// we need to ensure that the intended migrations for applying is in the
+	// correct order.
+	plan.RevertMigrations = sortMigrations(plan.RevertMigrations)
+	if len(plan.RevertMigrations) > 0 && plan.RevertMigrations[0].Direction == models.Down {
+		plan.RevertMigrations = reverseSortMigrations(plan.RevertMigrations)
+	}
+
+	// we copy the migrations to set them as revert migrations in the plan
+	migrations := plan.Migrations
+	plan.Migrations = plan.RevertMigrations
+	plan.RevertMigrations = migrations
 }
 
 func reverseSortMigrations(migrations []*models.Migration) []*models.Migration {
