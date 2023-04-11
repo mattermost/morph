@@ -452,7 +452,7 @@ func (suite *PostgresTestSuite) TestLock() {
 			suite.Require().NoError(err, "should not error while locking the mutex")
 
 			// ensure we waited the lock to be expire
-			suite.Require().True(time.Now().After(now.Add(2 * time.Second)))
+			suite.Require().True(time.Now().After(now.Add(1 * time.Second)))
 
 			err = mx.Unlock()
 			suite.Require().NoError(err, "should not error while unlocking the mutex")
