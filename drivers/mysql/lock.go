@@ -18,8 +18,8 @@ import (
 //
 // A Mutex must not be copied after first use.
 type Mutex struct {
-	noCopy
-	key string
+	noCopy // nolint:unused
+	key    string
 
 	// lock guards the variables used to manage the refresh task, and is not itself related to
 	// the db lock.
@@ -256,7 +256,7 @@ func (m *Mutex) finalizeTx(tx *sql.Tx) {
 //
 // See https://golang.org/issues/8005#issuecomment-190753527
 // for details.
-type noCopy struct{}
+type noCopy struct{} // nolint:unused
 
 // Lock is a no-op used by -copylocks checker from `go vet`.
-func (*noCopy) Lock() {}
+func (*noCopy) Lock() {} // nolint:unused

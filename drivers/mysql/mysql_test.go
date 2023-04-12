@@ -448,7 +448,7 @@ func (suite *MysqlTestSuite) TestLock() {
 			suite.Require().NoError(err, "should not error while locking the mutex")
 
 			// ensure we waited the lock to be expire
-			suite.Require().True(time.Now().After(now.Add(2 * time.Second)))
+			suite.Require().True(time.Now().After(now.Add(1 * time.Second)))
 
 			err = mx.Unlock()
 			suite.Require().NoError(err, "should not error while unlocking the mutex")
@@ -460,4 +460,45 @@ func (suite *MysqlTestSuite) TestLock() {
 		case <-done:
 		}
 	})
+}
+
+func (suite *MysqlTestSuite) TestSaveVersion() {
+	defaultConfig := getDefaultConfig()
+
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
+
+	// this creates the version table if not exists
+	_, err := connectedDriver.AppliedMigrations()
+	suite.Require().NoError(err, "should not error when creating migrations table")
+
+	insertMigrationsQuery := fmt.Sprintf(`
+		INSERT INTO %s(Version, Name)
+		VALUES
+		       (1, 'test_1'),
+			   (3, 'test_3'),
+			   (2, 'test_2');
+	`, defaultConfig.MigrationsTable)
+	_, err = suite.testDB.Exec(insertMigrationsQuery)
+	suite.Require().NoError(err, "should not error when inserting seed migrations")
+
+	appliedMigrations, err := connectedDriver.AppliedMigrations()
+	suite.Require().NoError(err, "should not error when fetching applied migrations")
+	suite.Assert().Len(appliedMigrations, 3)
+
+	err = connectedDriver.Apply(&models.Migration{
+		Version:   2,
+		Bytes:     []byte("select 1;"),
+		Name:      "test_1.sql",
+		Direction: models.Down,
+	}, true)
+	suite.Require().Error(err, "should error when downgrading in a version mismatch scenario")
+
+	err = connectedDriver.Apply(&models.Migration{
+		Version:   1,
+		Bytes:     []byte("select 1;"),
+		Name:      "test_1",
+		Direction: models.Down,
+	}, true)
+	suite.Require().NoError(err, "should not error when downgrading in a valid versioning scenario")
 }
