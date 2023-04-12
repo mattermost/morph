@@ -172,7 +172,8 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 	}
 
 	updateVersionQuery := driver.addMigrationQuery(migration)
-	if res, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery); err != nil {
+	res, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery)
+	if err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
@@ -180,25 +181,25 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 			Command: "update_version",
 			Query:   []byte(updateVersionQuery),
 		}
-	} else if res != nil {
-		affected, err := res.RowsAffected()
-		if err != nil {
-			return &drivers.DatabaseError{
-				OrigErr: err,
-				Driver:  driverName,
-				Message: "failed when reading the result for migrations table with the new version",
-				Command: "update_version",
-				Query:   []byte(updateVersionQuery),
-			}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed when reading the result for migrations table with the new version",
+			Command: "update_version",
+			Query:   []byte(updateVersionQuery),
 		}
-		if affected == 0 {
-			return &drivers.DatabaseError{
-				OrigErr: sql.ErrNoRows,
-				Driver:  driverName,
-				Message: "could not update version, probably a version mismatch",
-				Command: "update_version",
-				Query:   []byte(updateVersionQuery),
-			}
+	}
+	if affected == 0 {
+		return &drivers.DatabaseError{
+			OrigErr: sql.ErrNoRows,
+			Driver:  driverName,
+			Message: "could not update version, probably a version mismatch",
+			Command: "update_version",
+			Query:   []byte(updateVersionQuery),
 		}
 	}
 
