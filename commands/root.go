@@ -8,15 +8,15 @@ func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "morph",
 		Short:   "A database migration tool",
-		Version: "v0.1",
+		Version: "v1.0.4",
 	}
 
 	cmd.PersistentFlags().String("dir", ".", "the migrations directory")
 
 	cmd.AddCommand(
 		ApplyCmd(),
-		GenerateCmd(),
 		NewCmd(),
+		NewGenerateCmd(),
 	)
 
 	return cmd

@@ -7,10 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,10 +21,10 @@ import (
 
 var (
 	databaseName = "morph_test"
-	testConnURL  = fmt.Sprintf("postgres://postgres:morph@localhost:5432/%s?sslmode=disable", databaseName)
+	testConnURL  = fmt.Sprintf("postgres://morph:morph@localhost:6432/%s?sslmode=disable", databaseName)
 )
 
-const adminConnURL = "postgres://postgres:morph@localhost:5432?sslmode=disable"
+const adminConnURL = "postgres://morph:morph@localhost?sslmode=disable"
 
 type PostgresTestSuite struct {
 	suite.Suite
@@ -34,21 +32,18 @@ type PostgresTestSuite struct {
 }
 
 func (suite *PostgresTestSuite) BeforeTest(_, _ string) {
-	db, err := sql.Open(driverName, adminConnURL)
-	suite.Require().NoError(err, "should not error when connecting as admin to the database")
-	defer func() {
-		err = db.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
-	suite.Require().NoError(err, "should not error when dropping the test database")
-
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", databaseName))
-	suite.Require().NoError(err, "should not error when creating the test database")
-
+	var err error
 	suite.db, err = sql.Open(driverName, testConnURL)
 	suite.Require().NoError(err, "should not error when connecting to the test database")
+
+	_, err = suite.db.Exec(`DO $$ DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+END $$;`)
+	suite.Require().NoError(err, "should not error when dropping the tables the test database")
 }
 
 func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
@@ -64,19 +59,22 @@ func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver
 
 func (suite *PostgresTestSuite) AfterTest(_, _ string) {
 	if suite.db != nil {
-		err := suite.db.Close()
+		var err error
+		suite.db, err = sql.Open(driverName, testConnURL)
+		suite.Require().NoError(err, "should not error when connecting to the test database")
+
+		_, err = suite.db.Exec(`DO $$ DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+END $$;`)
+		suite.Require().NoError(err, "should not error when dropping the tables the test database")
+
+		err = suite.db.Close()
 		suite.Require().NoError(err, "should not error when closing the test database connection")
 	}
-
-	db, err := sql.Open(driverName, adminConnURL)
-	suite.Require().NoError(err, "should not error when connecting as admin to the database")
-	defer func() {
-		err = db.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}()
-
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
-	suite.Require().NoError(err, "should not error when dropping the test database")
 }
 
 func (suite *PostgresTestSuite) TestOpen() {
@@ -96,7 +94,7 @@ func (suite *PostgresTestSuite) TestOpen() {
 		defer teardown()
 
 		defaultConfig := getDefaultConfig()
-		cfg := &Config{
+		cfg := &driverConfig{
 			Config: drivers.Config{
 				MigrationsTable:        defaultConfig.MigrationsTable,
 				StatementTimeoutInSecs: defaultConfig.StatementTimeoutInSecs,
@@ -245,7 +243,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -258,7 +256,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
+					Bytes:   []byte("select 1;\nselect 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -271,14 +269,14 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_2.sql",
 				},
 			},
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -290,7 +288,7 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -305,12 +303,12 @@ func (suite *PostgresTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_2.sql",
 				},
 			},
@@ -377,18 +375,17 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	psqlDriver := driver.(*postgres)
+	psqlDriver.config.closeDBonClose = true
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
-	suite.Assert().Equal(databaseName, config.databaseName)
-	suite.Assert().Equal("public", config.schemaName)
+	suite.Assert().Equal(databaseName, psqlDriver.config.databaseName)
+	suite.Assert().Equal("public", psqlDriver.config.schemaName)
 }
 
 func TestPostgresSuite(t *testing.T) {
@@ -455,7 +452,7 @@ func (suite *PostgresTestSuite) TestLock() {
 			suite.Require().NoError(err, "should not error while locking the mutex")
 
 			// ensure we waited the lock to be expire
-			suite.Require().True(time.Now().After(now.Add(2 * time.Second)))
+			suite.Require().True(time.Now().After(now.Add(1 * time.Second)))
 
 			err = mx.Unlock()
 			suite.Require().NoError(err, "should not error while unlocking the mutex")

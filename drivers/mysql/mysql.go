@@ -24,7 +24,7 @@ var configParams = []string{
 	"x-statement-timeout",
 }
 
-type Config struct {
+type driverConfig struct {
 	drivers.Config
 	databaseName   string
 	closeDBonClose bool
@@ -33,11 +33,11 @@ type Config struct {
 type mysql struct {
 	conn   *sql.Conn
 	db     *sql.DB
-	config *Config
+	config *driverConfig
 }
 
-func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
-	driverConfig := mergeConfigs(config, getDefaultConfig())
+func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
+	driverConfig := getDefaultConfig()
 
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
@@ -150,15 +150,7 @@ func (driver *mysql) createSchemaTableIfNotExists() (err error) {
 }
 
 func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err error) {
-	query, readErr := migration.Query()
-	if readErr != nil {
-		return &drivers.AppError{
-			OrigErr: readErr,
-			Driver:  driverName,
-			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
-		}
-	}
-	defer migration.Close()
+	query := migration.Query()
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -180,11 +172,32 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 	}
 
 	updateVersionQuery := driver.addMigrationQuery(migration)
-	if _, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery); err != nil {
+	res, err := driver.conn.ExecContext(updateVersionContext, updateVersionQuery)
+	if err != nil {
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
 			Message: "failed when updating migrations table with the new version",
+			Command: "update_version",
+			Query:   []byte(updateVersionQuery),
+		}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return &drivers.DatabaseError{
+			OrigErr: err,
+			Driver:  driverName,
+			Message: "failed when reading the result for migrations table with the new version",
+			Command: "update_version",
+			Query:   []byte(updateVersionQuery),
+		}
+	}
+	if affected == 0 {
+		return &drivers.DatabaseError{
+			OrigErr: sql.ErrNoRows,
+			Driver:  driverName,
+			Message: "could not update version, probably a version mismatch",
 			Command: "update_version",
 			Query:   []byte(updateVersionQuery),
 		}
@@ -245,7 +258,7 @@ func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err er
 	return appliedMigrations, nil
 }
 
-func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
+func currentDatabaseNameFromDB(conn *sql.Conn, config *driverConfig) (string, error) {
 	query := "SELECT DATABASE()"
 
 	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
@@ -265,23 +278,7 @@ func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
 	return databaseName, nil
 }
 
-func mergeConfigs(config *Config, defaultConfig *Config) *Config {
-	if config.MigrationsTable == "" {
-		config.MigrationsTable = defaultConfig.MigrationsTable
-	}
-
-	if config.StatementTimeoutInSecs == 0 {
-		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
-	}
-
-	if config.MigrationMaxSize == 0 {
-		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
-	}
-
-	return config
-}
-
-func mergeConfigWithParams(params map[string]string, config *Config) (*Config, error) {
+func mergeConfigWithParams(params map[string]string, config *driverConfig) (*driverConfig, error) {
 	var err error
 
 	for _, configKey := range configParams {

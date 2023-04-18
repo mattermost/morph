@@ -7,10 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +61,9 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 	_, err := suite.db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", databaseName))
 	suite.Require().NoError(err, "should not error when dropping the test database")
 
+	_, err = suite.db.Exec(fmt.Sprintf("CREATE DATABASE %s", databaseName))
+	suite.Require().NoError(err, "should not error when creating the test database")
+
 	if suite.db != nil {
 		err := suite.db.Close()
 		suite.Require().NoError(err, "should not error when closing the default database connection")
@@ -103,7 +104,7 @@ func (suite *MysqlTestSuite) TestOpen() {
 		defer teardown()
 
 		defaultConfig := getDefaultConfig()
-		cfg := &Config{
+		cfg := &driverConfig{
 			Config: drivers.Config{
 				MigrationsTable:        defaultConfig.MigrationsTable,
 				StatementTimeoutInSecs: defaultConfig.StatementTimeoutInSecs,
@@ -112,6 +113,7 @@ func (suite *MysqlTestSuite) TestOpen() {
 			closeDBonClose: true, // we have created DB from DSN
 		}
 		mysqlDriver := connectedDriver.(*mysql)
+
 		suite.Assert().EqualValues(cfg, mysqlDriver.config)
 	})
 
@@ -239,7 +241,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -252,7 +254,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
+					Bytes:   []byte("select 1;\nselect 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -265,14 +267,14 @@ func (suite *MysqlTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_2.sql",
 				},
 			},
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -284,7 +286,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -299,12 +301,12 @@ func (suite *MysqlTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_2.sql",
 				},
 			},
@@ -370,17 +372,16 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	mysqlDriver := driver.(*mysql)
+	mysqlDriver.config.closeDBonClose = true
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
-	suite.Assert().Equal(databaseName, config.databaseName)
+	suite.Assert().Equal(databaseName, mysqlDriver.config.databaseName)
 }
 
 func TestMysqlTestSuite(t *testing.T) {
@@ -447,7 +448,7 @@ func (suite *MysqlTestSuite) TestLock() {
 			suite.Require().NoError(err, "should not error while locking the mutex")
 
 			// ensure we waited the lock to be expire
-			suite.Require().True(time.Now().After(now.Add(2 * time.Second)))
+			suite.Require().True(time.Now().After(now.Add(1 * time.Second)))
 
 			err = mx.Unlock()
 			suite.Require().NoError(err, "should not error while unlocking the mutex")
@@ -459,4 +460,45 @@ func (suite *MysqlTestSuite) TestLock() {
 		case <-done:
 		}
 	})
+}
+
+func (suite *MysqlTestSuite) TestSaveVersion() {
+	defaultConfig := getDefaultConfig()
+
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
+
+	// this creates the version table if not exists
+	_, err := connectedDriver.AppliedMigrations()
+	suite.Require().NoError(err, "should not error when creating migrations table")
+
+	insertMigrationsQuery := fmt.Sprintf(`
+		INSERT INTO %s(Version, Name)
+		VALUES
+		       (1, 'test_1'),
+			   (3, 'test_3'),
+			   (2, 'test_2');
+	`, defaultConfig.MigrationsTable)
+	_, err = suite.testDB.Exec(insertMigrationsQuery)
+	suite.Require().NoError(err, "should not error when inserting seed migrations")
+
+	appliedMigrations, err := connectedDriver.AppliedMigrations()
+	suite.Require().NoError(err, "should not error when fetching applied migrations")
+	suite.Assert().Len(appliedMigrations, 3)
+
+	err = connectedDriver.Apply(&models.Migration{
+		Version:   2,
+		Bytes:     []byte("select 1;"),
+		Name:      "test_1.sql",
+		Direction: models.Down,
+	}, true)
+	suite.Require().Error(err, "should error when downgrading in a version mismatch scenario")
+
+	err = connectedDriver.Apply(&models.Migration{
+		Version:   1,
+		Bytes:     []byte("select 1;"),
+		Name:      "test_1",
+		Direction: models.Down,
+	}, true)
+	suite.Require().NoError(err, "should not error when downgrading in a valid versioning scenario")
 }

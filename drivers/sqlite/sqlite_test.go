@@ -4,11 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/mattermost/morph/drivers"
@@ -26,21 +24,20 @@ type SqliteTestSuite struct {
 	suite.Suite
 }
 
-func (suite *SqliteTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
+func (suite *SqliteTestSuite) InitializeDriver(connURL string) drivers.Driver {
 	connectedDriver, err := Open(connURL)
 	suite.Require().NoError(err, "should not error when connecting to database from url")
 	suite.Require().NotNil(connectedDriver)
 
-	return connectedDriver, func() {
-		err = connectedDriver.Close()
-		suite.Require().NoError(err, "should not error when closing the database connection")
-	}
+	return connectedDriver
 }
 
 func (suite *SqliteTestSuite) TestOpen() {
 	suite.T().Run("when connURL is valid and bare(no custom configuration present)", func(t *testing.T) {
-		_, teardown := suite.InitializeDriver(testConnURL)
-		defer teardown()
+		connectedDriver := suite.InitializeDriver(testConnURL)
+		t.Cleanup(func() {
+			require.NoError(t, connectedDriver.Close(), "should close the driver w/o errors")
+		})
 	})
 
 	suite.T().Run("when connURL is invalid", func(t *testing.T) {
@@ -56,8 +53,10 @@ func (suite *SqliteTestSuite) TestOpen() {
 	})
 
 	suite.T().Run("when connURL is valid and bare uses default configuration", func(t *testing.T) {
-		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-		defer teardown()
+		connectedDriver := suite.InitializeDriver(testConnURL)
+		t.Cleanup(func() {
+			require.NoError(t, connectedDriver.Close(), "should close the driver w/o errors")
+		})
 
 		cfg := getDefaultConfig()
 		cfg.closeDBonClose = true // since we open the driver via DSN, we set closeDBonClose to true
@@ -80,8 +79,10 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 	defaultConfig := getDefaultConfig()
 
 	suite.T().Run("when x-migrations-table is missing, it creates a migrations table if not exists based on the default configuration", func(t *testing.T) {
-		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-		defer teardown()
+		connectedDriver := suite.InitializeDriver(testConnURL)
+		t.Cleanup(func() {
+			require.NoError(t, connectedDriver.Close(), "should close the driver w/o errors")
+		})
 
 		driver, ok := connectedDriver.(*sqlite)
 		suite.Require().True(ok)
@@ -103,8 +104,10 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 	})
 
 	suite.T().Run("when x-migrations-table exists, it creates a migrations table if not exists", func(t *testing.T) {
-		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migrations-table=awesome_migrations")
-		defer teardown()
+		connectedDriver := suite.InitializeDriver(testConnURL + "?x-migrations-table=awesome_migrations")
+		t.Cleanup(func() {
+			require.NoError(t, connectedDriver.Close(), "should close the driver w/o errors")
+		})
 
 		driver, ok := connectedDriver.(*sqlite)
 		suite.Require().True(ok)
@@ -127,8 +130,10 @@ func (suite *SqliteTestSuite) TestCreateSchemaTableIfNotExists() {
 }
 
 func (suite *SqliteTestSuite) TestLock() {
-	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-	defer teardown()
+	connectedDriver := suite.InitializeDriver(testConnURL)
+	suite.T().Cleanup(func() {
+		require.NoError(suite.T(), connectedDriver.Close(), "should close the driver w/o errors")
+	})
 
 	driver, ok := connectedDriver.(*sqlite)
 	suite.Require().True(ok)
@@ -142,8 +147,10 @@ func (suite *SqliteTestSuite) TestLock() {
 }
 
 func (suite *SqliteTestSuite) TestUnlock() {
-	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-	defer teardown()
+	connectedDriver := suite.InitializeDriver(testConnURL)
+	suite.T().Cleanup(func() {
+		require.NoError(suite.T(), connectedDriver.Close(), "should close the driver w/o errors")
+	})
 
 	driver, ok := connectedDriver.(*sqlite)
 	suite.Require().True(ok)
@@ -159,10 +166,10 @@ func (suite *SqliteTestSuite) TestUnlock() {
 }
 
 func (suite *SqliteTestSuite) TestAppliedMigrations() {
-	suite.T().Skip("MM-41987")
-
-	connectedDriver, teardown := suite.InitializeDriver(defaultConnURL)
-	defer teardown()
+	connectedDriver := suite.InitializeDriver(testConnURL)
+	suite.T().Cleanup(func() {
+		require.NoError(suite.T(), connectedDriver.Close(), "should close the driver w/o errors")
+	})
 
 	_, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when creating migrations table")
@@ -183,6 +190,8 @@ func (suite *SqliteTestSuite) TestAppliedMigrations() {
 	appliedMigrations, err := connectedDriver.AppliedMigrations()
 	suite.Require().NoError(err, "should not error when fetching applied migrations")
 	suite.Assert().Len(appliedMigrations, 3)
+	_, err = driver.db.Exec(fmt.Sprintf("DELETE FROM %s", defaultConfig.MigrationsTable))
+	suite.Require().NoError(err, "should not error when deleting seed migrations")
 }
 
 func (suite *SqliteTestSuite) TestApply() {
@@ -200,7 +209,7 @@ func (suite *SqliteTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -213,7 +222,7 @@ func (suite *SqliteTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;\nselect 1;")),
+					Bytes:   []byte("select 1;\nselect 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -226,14 +235,14 @@ func (suite *SqliteTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_2.sql",
 				},
 			},
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -245,7 +254,7 @@ func (suite *SqliteTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_1.sql",
 				},
 			},
@@ -260,12 +269,12 @@ func (suite *SqliteTestSuite) TestApply() {
 			[]*models.Migration{
 				{
 					Version: 1,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select 1;")),
+					Bytes:   []byte("select 1;"),
 					Name:    "migration_1.sql",
 				},
 				{
 					Version: 2,
-					Bytes:   ioutil.NopCloser(strings.NewReader("select * from foobar;")),
+					Bytes:   []byte("select * from foobar;"),
 					Name:    "migration_2.sql",
 				},
 			},
@@ -285,8 +294,10 @@ func (suite *SqliteTestSuite) TestApply() {
 			expectedAppliedMigrations := elem.ExpectedAppliedMigrations
 			expectedErrors := elem.Errors
 
-			connectedDriver, teardown := suite.InitializeDriver(testConnURL)
-			defer teardown()
+			connectedDriver := suite.InitializeDriver(testConnURL)
+			t.Cleanup(func() {
+				require.NoError(t, connectedDriver.Close(), "should close the driver w/o errors")
+			})
 
 			driver, ok := connectedDriver.(*sqlite)
 			suite.Require().True(ok)
@@ -338,10 +349,10 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	config := &Config{
-		closeDBonClose: true,
-	}
-	driver, err := WithInstance(db, config)
+	driver, err := WithInstance(db)
+	sqliteDriver := driver.(*sqlite)
+	sqliteDriver.config.closeDBonClose = true
+
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
 		err = driver.Close()
@@ -350,12 +361,12 @@ func (suite *SqliteTestSuite) TestWithInstance() {
 }
 
 func TestSqliteTestSuite(t *testing.T) {
-	defaultDBFile, err := ioutil.TempFile("", "morph-default.db")
+	defaultDBFile, err := os.CreateTemp("", "morph-default.db")
 	require.NoError(t, err)
 	info, err := defaultDBFile.Stat()
 	require.NoError(t, err)
 
-	testDBFile, err := ioutil.TempFile("", "morph-test.db")
+	testDBFile, err := os.CreateTemp("", "morph-test.db")
 	require.NoError(t, err)
 	tfInfo, err := testDBFile.Stat()
 	require.NoError(t, err)

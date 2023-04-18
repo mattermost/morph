@@ -21,6 +21,11 @@ type Driver interface {
 	Close() error
 	Apply(migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
+	// SetConfig should be used to set the driver configuration. The key is the name of the configuration
+	// This method should return an error if the key is not supported.
+	// This method is being used by the morph engine to apply configurations such as:
+	// StatementTimeoutInSecs
+	// MigrationsTableName
 	SetConfig(key string, value interface{}) error
 }
 

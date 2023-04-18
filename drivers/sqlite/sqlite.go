@@ -26,7 +26,7 @@ var configParams = []string{
 	"x-statement-timeout",
 }
 
-type Config struct {
+type driverConfig struct {
 	drivers.Config
 	closeDBonClose bool
 }
@@ -34,20 +34,18 @@ type Config struct {
 type sqlite struct {
 	conn   *sql.Conn
 	db     *sql.DB
-	config *Config
+	config *driverConfig
 
 	lockedFlag int32 // indicates that the driver is locked or not
 }
 
-func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
-	driverConfig := mergeConfigs(config, getDefaultConfig())
-
+func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
-	return &sqlite{config: driverConfig, conn: conn, db: dbInstance}, nil
+	return &sqlite{config: getDefaultConfig(), conn: conn, db: dbInstance}, nil
 }
 
 func Open(filePath string) (drivers.Driver, error) {
@@ -177,15 +175,8 @@ func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err 
 		_ = driver.unlock()
 	}()
 
-	query, readErr := migration.Query()
-	if readErr != nil {
-		return &drivers.AppError{
-			OrigErr: readErr,
-			Driver:  driverName,
-			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
-		}
-	}
-	defer migration.Close()
+	query := migration.Query()
+
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -282,23 +273,7 @@ func (driver *sqlite) AppliedMigrations() (migrations []*models.Migration, err e
 	return appliedMigrations, nil
 }
 
-func mergeConfigs(config *Config, defaultConfig *Config) *Config {
-	if config.MigrationsTable == "" {
-		config.MigrationsTable = defaultConfig.MigrationsTable
-	}
-
-	if config.StatementTimeoutInSecs == 0 {
-		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
-	}
-
-	if config.MigrationMaxSize == 0 {
-		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
-	}
-
-	return config
-}
-
-func mergeConfigWithParams(params map[string]string, config *Config) (*Config, error) {
+func mergeConfigWithParams(params map[string]string, config *driverConfig) (*driverConfig, error) {
 	var err error
 
 	for _, configKey := range configParams {

@@ -23,7 +23,7 @@ var (
 	}
 )
 
-type Config struct {
+type driverConfig struct {
 	drivers.Config
 	databaseName   string
 	schemaName     string
@@ -33,17 +33,16 @@ type Config struct {
 type postgres struct {
 	conn   *sql.Conn
 	db     *sql.DB
-	config *Config
+	config *driverConfig
 }
 
-func WithInstance(dbInstance *sql.DB, config *Config) (drivers.Driver, error) {
-	driverConfig := mergeConfigs(config, getDefaultConfig())
-
+func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
 	}
 
+	driverConfig := getDefaultConfig()
 	if driverConfig.databaseName, err = currentDatabaseNameFromDB(conn, driverConfig); err != nil {
 		return nil, err
 	}
@@ -102,7 +101,7 @@ func Open(connURL string) (drivers.Driver, error) {
 	}, nil
 }
 
-func currentSchema(conn *sql.Conn, config *Config) (string, error) {
+func currentSchema(conn *sql.Conn, config *driverConfig) (string, error) {
 	query := "SELECT CURRENT_SCHEMA()"
 
 	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
@@ -121,7 +120,7 @@ func currentSchema(conn *sql.Conn, config *Config) (string, error) {
 	return schemaName, nil
 }
 
-func mergeConfigWithParams(params map[string]string, config *Config) (*Config, error) {
+func mergeConfigWithParams(params map[string]string, config *driverConfig) (*driverConfig, error) {
 	var err error
 
 	for _, configKey := range configParams {
@@ -142,22 +141,6 @@ func mergeConfigWithParams(params map[string]string, config *Config) (*Config, e
 	}
 
 	return config, nil
-}
-
-func mergeConfigs(config, defaultConfig *Config) *Config {
-	if config.MigrationsTable == "" {
-		config.MigrationsTable = defaultConfig.MigrationsTable
-	}
-
-	if config.StatementTimeoutInSecs == 0 {
-		config.StatementTimeoutInSecs = defaultConfig.StatementTimeoutInSecs
-	}
-
-	if config.MigrationMaxSize == 0 {
-		config.MigrationMaxSize = defaultConfig.MigrationMaxSize
-	}
-
-	return config
 }
 
 func (pg *postgres) Ping() error {
@@ -220,15 +203,7 @@ func (pg *postgres) Close() error {
 }
 
 func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
-	query, readErr := migration.Query()
-	if readErr != nil {
-		return &drivers.AppError{
-			OrigErr: readErr,
-			Driver:  driverName,
-			Message: fmt.Sprintf("failed to read migration query: %s", migration.Name),
-		}
-	}
-	defer migration.Close()
+	query := migration.Query()
 
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
@@ -349,7 +324,7 @@ func executeQuery(transaction *sql.Tx, query string) error {
 	return nil
 }
 
-func currentDatabaseNameFromDB(conn *sql.Conn, config *Config) (string, error) {
+func currentDatabaseNameFromDB(conn *sql.Conn, config *driverConfig) (string, error) {
 	query := "SELECT CURRENT_DATABASE()"
 
 	ctx, cancel := drivers.GetContext(config.StatementTimeoutInSecs)
