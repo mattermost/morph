@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mattermost/morph/models"
@@ -22,8 +23,11 @@ import (
 	_ "github.com/mattermost/morph/sources/file"
 )
 
-var migrationProgressStart = "==  %s: migrating (%s)  ============================================="
-var migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
+var (
+	migrationProgressStart    = "==  %s: migrating (%s)  ============================================="
+	migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
+	migrationInterceptor      = "== %s: running pre-migration function =================================="
+)
 
 const maxProgressLogLength = 100
 
@@ -32,6 +36,10 @@ type Morph struct {
 	driver drivers.Driver
 	source sources.Source
 	mutex  drivers.Locker
+
+	interceptorLock   sync.Mutex
+	intercecptorsUp   map[int]Interceptor
+	intercecptorsDown map[int]Interceptor
 }
 
 type Config struct {
@@ -41,6 +49,10 @@ type Config struct {
 }
 
 type EngineOption func(*Morph) error
+
+// Interceptor is a handler function that being called just before the migration
+// applied. If the interceptor returns an error, migration will be aborted.
+type Interceptor func() error
 
 func WithLogger(logger Logger) EngineOption {
 	return func(m *Morph) error {
@@ -89,8 +101,10 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 		config: &Config{
 			Logger: newColorLogger(log.New(os.Stderr, "", log.LstdFlags)), // add default logger
 		},
-		source: source,
-		driver: driver,
+		source:            source,
+		driver:            driver,
+		intercecptorsUp:   make(map[int]Interceptor),
+		intercecptorsDown: make(map[int]Interceptor),
 	}
 
 	for _, option := range options {
@@ -144,6 +158,14 @@ func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) err
 	start := time.Now()
 	migrationName := migration.Name
 	direction := migration.Direction
+	f := m.getInterceptor(migration)
+	if f != nil {
+		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationInterceptor, migrationName)))
+		err := f()
+		if err != nil {
+			return err
+		}
+	}
 	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName, direction)))
 	if !dryRun {
 		if err := m.driver.Apply(migration, saveVersion); err != nil {
@@ -390,6 +412,49 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 
 	// return error in any case
 	return fmt.Errorf("could not apply migration: %w", err)
+}
+
+// AddInterceptor registers a handler function to be executed before the actual migration
+func (m *Morph) AddInterceptor(version int, direction models.Direction, handler Interceptor) {
+	m.interceptorLock.Lock()
+	switch direction {
+	case models.Up:
+		m.intercecptorsUp[version] = handler
+	case models.Down:
+		m.intercecptorsDown[version] = handler
+	}
+	m.interceptorLock.Unlock()
+}
+
+// RemoveInterceptor removes the handler function from the engine
+func (m *Morph) RemoveInterceptor(version int, direction models.Direction) {
+	m.interceptorLock.Lock()
+	switch direction {
+	case models.Up:
+		delete(m.intercecptorsUp, version)
+	case models.Down:
+		delete(m.intercecptorsDown, version)
+	}
+	m.interceptorLock.Unlock()
+}
+
+func (m *Morph) getInterceptor(migration *models.Migration) Interceptor {
+	m.interceptorLock.Lock()
+	var f Interceptor
+	switch migration.Direction {
+	case models.Up:
+		fn, ok := m.intercecptorsUp[int(migration.Version)]
+		if ok {
+			f = fn
+		}
+	case models.Down:
+		fn, ok := m.intercecptorsDown[int(migration.Version)]
+		if ok {
+			f = fn
+		}
+	}
+	m.interceptorLock.Unlock()
+	return f
 }
 
 // SwapPlanDirection alters the plan direction to the opposite direction.
