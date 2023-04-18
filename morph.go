@@ -38,8 +38,8 @@ type Morph struct {
 	mutex  drivers.Locker
 
 	interceptorLock   sync.Mutex
-	intercecptorsUp   map[int]Interceptor
-	intercecptorsDown map[int]Interceptor
+	intercecptorsUp   map[int]func() error
+	intercecptorsDown map[int]func() error
 }
 
 type Config struct {
@@ -49,10 +49,6 @@ type Config struct {
 }
 
 type EngineOption func(*Morph) error
-
-// Interceptor is a handler function that being called just before the migration
-// applied. If the interceptor returns an error, migration will be aborted.
-type Interceptor func() error
 
 func WithLogger(logger Logger) EngineOption {
 	return func(m *Morph) error {
@@ -103,8 +99,8 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 		},
 		source:            source,
 		driver:            driver,
-		intercecptorsUp:   make(map[int]Interceptor),
-		intercecptorsDown: make(map[int]Interceptor),
+		intercecptorsUp:   make(map[int]func() error),
+		intercecptorsDown: make(map[int]func() error),
 	}
 
 	for _, option := range options {
@@ -415,7 +411,7 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 }
 
 // AddInterceptor registers a handler function to be executed before the actual migration
-func (m *Morph) AddInterceptor(version int, direction models.Direction, handler Interceptor) {
+func (m *Morph) AddInterceptor(version int, direction models.Direction, handler func() error) {
 	m.interceptorLock.Lock()
 	switch direction {
 	case models.Up:
@@ -426,7 +422,6 @@ func (m *Morph) AddInterceptor(version int, direction models.Direction, handler 
 	m.interceptorLock.Unlock()
 }
 
-// RemoveInterceptor removes the handler function from the engine
 func (m *Morph) RemoveInterceptor(version int, direction models.Direction) {
 	m.interceptorLock.Lock()
 	switch direction {
@@ -438,9 +433,9 @@ func (m *Morph) RemoveInterceptor(version int, direction models.Direction) {
 	m.interceptorLock.Unlock()
 }
 
-func (m *Morph) getInterceptor(migration *models.Migration) Interceptor {
+func (m *Morph) getInterceptor(migration *models.Migration) func() error {
 	m.interceptorLock.Lock()
-	var f Interceptor
+	var f func() error
 	switch migration.Direction {
 	case models.Up:
 		fn, ok := m.intercecptorsUp[int(migration.Version)]
