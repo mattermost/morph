@@ -149,7 +149,7 @@ func (driver *mysql) createSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
-func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err error) {
+func (driver *mysql) Apply(logger drivers.Logger, migration *models.Migration, saveVersion bool) (err error) {
 	query := migration.Query()
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()

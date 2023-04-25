@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/mattermost/morph/drivers"
 	"github.com/mattermost/morph/models"
 
 	"github.com/stretchr/testify/assert"
@@ -369,7 +370,7 @@ func (d *testDriver) Close() error {
 
 // Apply applies a migration and imitates what a real driver would do. The trick is
 // it's going to throw an error if the migration version is equal to the failAt value.
-func (d *testDriver) Apply(migration *models.Migration, saveVersion bool) error {
+func (d *testDriver) Apply(logger drivers.Logger, migration *models.Migration, saveVersion bool) error {
 	if int(migration.Version) == d.failAt && d.mode == migration.Direction {
 		return errors.New("failed to apply migration")
 	}

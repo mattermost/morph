@@ -146,7 +146,7 @@ func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) err
 	direction := migration.Direction
 	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName, direction)))
 	if !dryRun {
-		if err := m.driver.Apply(migration, saveVersion); err != nil {
+		if err := m.driver.Apply(m.config.Logger, migration, saveVersion); err != nil {
 			return err
 		}
 	}

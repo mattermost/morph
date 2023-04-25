@@ -202,14 +202,19 @@ func (pg *postgres) Close() error {
 	return nil
 }
 
-func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
+func (pg *postgres) Apply(logger drivers.Logger, migration *models.Migration, saveVersion bool) (err error) {
 	query := migration.Query()
+
+	logger.Printf("morph:postgres:Apply - Running query %q\n", query)
 
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
 
+	logger.Println("morph:postgres:Apply - Beginning transaction")
+
 	transaction, err := pg.conn.BeginTx(ctx, nil)
 	if err != nil {
+		logger.Printf("morph:postgres:Apply - Error beginning the transaction: %q\n", err.Error())
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
@@ -218,18 +223,24 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 		}
 	}
 
+	logger.Println("morph:postgres:Apply - Executing query")
 	if err = executeQuery(transaction, query); err != nil {
+		logger.Printf("morph:postgres:Apply - Error executing query: %q", err.Error())
 		return err
 	}
 
 	if saveVersion {
+		logger.Println("morph:postgres:Apply - Saving version")
 		if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
+			logger.Printf("morph:postgres:Apply - Error executing query %q: %q", pg.addMigrationQuery(migration), err.Error())
 			return err
 		}
 	}
 
+	logger.Println("morph:postgres:Apply - Committing transaction")
 	err = transaction.Commit()
 	if err != nil {
+		logger.Printf("morph:postgres:Apply - Error committing transaction: %q", err.Error())
 		return &drivers.DatabaseError{
 			OrigErr: err,
 			Driver:  driverName,
@@ -237,6 +248,8 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 			Command: "commit_transaction",
 		}
 	}
+
+	logger.Println("morph:postgres:Apply - Finished")
 
 	return nil
 }

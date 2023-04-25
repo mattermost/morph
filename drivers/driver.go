@@ -17,7 +17,7 @@ type Driver interface {
 	// Close closes the underlying db connection. If the driver is created via Open() function
 	// this method will also going to call Close() on the sql.db instance.
 	Close() error
-	Apply(migration *models.Migration, saveVersion bool) error
+	Apply(logger Logger, migration *models.Migration, saveVersion bool) error
 	AppliedMigrations() ([]*models.Migration, error)
 	// SetConfig should be used to set the driver configuration. The key is the name of the configuration
 	// This method should return an error if the key is not supported.

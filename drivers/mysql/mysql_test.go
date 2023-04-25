@@ -343,7 +343,7 @@ func (suite *MysqlTestSuite) TestApply() {
 			}
 
 			for i, pendingMigration := range pendingMigrations {
-				err = connectedDriver.Apply(pendingMigration, true)
+				err = connectedDriver.Apply(drivers.DefaultLogger{}, pendingMigration, true)
 				if expectedErrors[i] != nil {
 					suite.Assert().EqualErrorf(err, expectedErrors[i].Error(), "")
 				} else {

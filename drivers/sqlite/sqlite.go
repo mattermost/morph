@@ -167,7 +167,7 @@ func (driver *sqlite) createSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
-func (driver *sqlite) Apply(migration *models.Migration, saveVersion bool) (err error) {
+func (driver *sqlite) Apply(logger drivers.Logger, migration *models.Migration, saveVersion bool) (err error) {
 	if err = driver.lock(); err != nil {
 		return err
 	}

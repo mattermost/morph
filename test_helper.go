@@ -156,7 +156,7 @@ func (h *testHelper) Teardown(t *testing.T) {
 		migration := &models.Migration{
 			Bytes: b,
 		}
-		err = driver.Apply(migration, false)
+		err = driver.Apply(drivers.DefaultLogger{}, migration, false)
 		require.NoError(t, err)
 	}
 
