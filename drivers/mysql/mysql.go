@@ -336,5 +336,5 @@ func (driver *mysql) DB() *sql.DB {
 }
 
 func (driver *mysql) Name() string {
-	return "mysql"
+	return driverName
 }

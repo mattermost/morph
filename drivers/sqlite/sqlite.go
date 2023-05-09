@@ -355,5 +355,5 @@ func (driver *sqlite) DB() *sql.DB {
 }
 
 func (driver *sqlite) Name() string {
-	return "sqlite"
+	return driverName
 }

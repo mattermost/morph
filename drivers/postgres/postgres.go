@@ -371,5 +371,5 @@ func (driver *postgres) DB() *sql.DB {
 }
 
 func (driver *postgres) Name() string {
-	return "postgres"
+	return driverName
 }
