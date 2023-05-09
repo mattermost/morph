@@ -50,6 +50,10 @@ type Config struct {
 
 type EngineOption func(*Morph) error
 
+// Interceptor is a handler function that being called just before the migration
+// applied. If the interceptor returns an error, migration will be aborted.
+type Interceptor func() error
+
 func WithLogger(logger Logger) EngineOption {
 	return func(m *Morph) error {
 		m.config.Logger = logger
@@ -422,6 +426,7 @@ func (m *Morph) AddInterceptor(version int, direction models.Direction, handler 
 	m.interceptorLock.Unlock()
 }
 
+// RemoveInterceptor removes the handler function from the engine
 func (m *Morph) RemoveInterceptor(version int, direction models.Direction) {
 	m.interceptorLock.Lock()
 	switch direction {

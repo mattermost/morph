@@ -84,6 +84,7 @@ func PlanApplyCmd() *cobra.Command {
 		RunE:          planApplyCmdF,
 		SilenceUsage:  true,
 		SilenceErrors: false,
+		Args:          cobra.MinimumNArgs(1),
 	}
 	cmd.Flags().Bool("revert", false, "reverts an existing plan")
 
