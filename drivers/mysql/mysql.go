@@ -330,3 +330,11 @@ func (driver *mysql) SetConfig(key string, value interface{}) error {
 
 	return fmt.Errorf("incorrect key name %q", key)
 }
+
+func (driver *mysql) DB() *sql.DB {
+	return driver.db
+}
+
+func (driver *mysql) Name() string {
+	return driverName
+}

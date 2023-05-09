@@ -1,6 +1,8 @@
 package drivers
 
 import (
+	"database/sql"
+
 	"github.com/mattermost/morph/models"
 )
 
@@ -25,4 +27,9 @@ type Driver interface {
 	// StatementTimeoutInSecs
 	// MigrationsTableName
 	SetConfig(key string, value interface{}) error
+}
+
+type DBNamer interface {
+	DB() *sql.DB
+	Name() string
 }

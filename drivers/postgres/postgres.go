@@ -365,3 +365,11 @@ func (pg *postgres) SetConfig(key string, value interface{}) error {
 
 	return fmt.Errorf("incorrect key name %q", key)
 }
+
+func (driver *postgres) DB() *sql.DB {
+	return driver.db
+}
+
+func (driver *postgres) Name() string {
+	return driverName
+}
