@@ -1,18 +1,13 @@
 package morph
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"testing"
 
 	"github.com/mgdelacroix/foundation"
-	"github.com/stretchr/testify/require"
 
 	"github.com/mattermost/morph/drivers"
-	"github.com/mattermost/morph/drivers/mysql"
-	"github.com/mattermost/morph/models"
-	"github.com/mattermost/morph/sources/embedded"
 )
 
 type TestHelper struct {
@@ -91,32 +86,4 @@ func (m *Migrator) Interceptors() map[int]func() error {
 
 func (m *Migrator) TearDown() error {
 	return m.engine.Close()
-}
-
-func TestSomething(t *testing.T) {
-	// part 1: initialize the test helper
-	db, err := sql.Open("mysql", "<DSN>")
-	require.NoError(t, err)
-
-	driver, err := mysql.WithInstance(db)
-	require.NoError(t, err)
-
-	src, err := embedded.WithInstance(migrationAssets)
-	require.NoError(t, err)
-
-	engine, err := New(context.Background(), driver, src, opts...)
-	require.NoError(t, err)
-
-	engine.AddInterceptor(12, models.Up, func() error {
-		// do something
-		return nil
-	})
-
-	th, teardown := NewTestHelper(t, engine)
-	defer teardown()
-
-	// part 2: do actual testing
-	th.MigrateToStep(12)
-	th.ExecFile("my_query.sql")
-	th.DB().Get(&struct{}{}, "")
 }
