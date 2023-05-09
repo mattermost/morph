@@ -86,6 +86,107 @@ func TestApply(t *testing.T) {
 	})
 }
 
+func TestInterceptors(t *testing.T) {
+	h := newTestHelper(t)
+	defer h.Teardown(t)
+
+	h.AddMigration(t, "test_migration_1")
+	h.AddMigration(t, "test_migration_2")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		var i int
+		engine.AddInterceptor(1, models.Up, func() error {
+			i++
+			return nil
+		})
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, i)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+
+		engine.AddInterceptor(1, models.Down, func() error {
+			i--
+			return nil
+		})
+		_, err = engine.ApplyDown(1)
+		require.NoError(t, err)
+
+		require.Zero(t, i)
+
+		migrations, err = engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Empty(t, migrations)
+	}, "run interceptor function before the actual migration")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		var i int
+		engine.AddInterceptor(1, models.Up, func() error {
+			i++
+			return errors.New("fail")
+		})
+		_, err := engine.Apply(1)
+		require.Error(t, err)
+
+		require.Equal(t, 1, i)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Empty(t, migrations)
+	}, "abort migration if interceptor function returns error")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		var i int
+		engine.AddInterceptor(2, models.Up, func() error {
+			i++
+			return errors.New("fail")
+		})
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		require.Zero(t, i)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+		_, err = engine.ApplyDown(1)
+		require.NoError(t, err)
+	}, "do not call interceptor if the desired version is not reached")
+
+	h.RunForAllDrivers(t, func(t *testing.T, engine *Morph) {
+		// first get schema to a version
+		_, err := engine.Apply(1)
+		require.NoError(t, err)
+
+		migrations, err := engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 1)
+
+		var i int
+		engine.AddInterceptor(1, models.Up, func() error {
+			i++
+			return nil
+		})
+		_, err = engine.Apply(1)
+		require.NoError(t, err)
+
+		require.Zero(t, i)
+
+		migrations, err = engine.driver.AppliedMigrations()
+		require.NoError(t, err)
+
+		require.Len(t, migrations, 2)
+	}, "do not call interceptor if the desired version is passed already")
+}
+
 func TestDiff(t *testing.T) {
 	h := newTestHelper(t)
 	defer h.Teardown(t)
