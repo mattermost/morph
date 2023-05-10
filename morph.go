@@ -38,8 +38,8 @@ type Morph struct {
 	mutex  drivers.Locker
 
 	interceptorLock   sync.Mutex
-	intercecptorsUp   map[int]func() error
-	intercecptorsDown map[int]func() error
+	intercecptorsUp   map[int]Interceptor
+	intercecptorsDown map[int]Interceptor
 }
 
 type Config struct {
@@ -103,8 +103,8 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 		},
 		source:            source,
 		driver:            driver,
-		intercecptorsUp:   make(map[int]func() error),
-		intercecptorsDown: make(map[int]func() error),
+		intercecptorsUp:   make(map[int]Interceptor),
+		intercecptorsDown: make(map[int]Interceptor),
 	}
 
 	for _, option := range options {
@@ -415,7 +415,7 @@ func (m *Morph) ApplyPlan(plan *models.Plan) error {
 }
 
 // AddInterceptor registers a handler function to be executed before the actual migration
-func (m *Morph) AddInterceptor(version int, direction models.Direction, handler func() error) {
+func (m *Morph) AddInterceptor(version int, direction models.Direction, handler Interceptor) {
 	m.interceptorLock.Lock()
 	switch direction {
 	case models.Up:
@@ -438,9 +438,9 @@ func (m *Morph) RemoveInterceptor(version int, direction models.Direction) {
 	m.interceptorLock.Unlock()
 }
 
-func (m *Morph) getInterceptor(migration *models.Migration) func() error {
+func (m *Morph) getInterceptor(migration *models.Migration) Interceptor {
 	m.interceptorLock.Lock()
-	var f func() error
+	var f Interceptor
 	switch migration.Direction {
 	case models.Up:
 		fn, ok := m.intercecptorsUp[int(migration.Version)]
