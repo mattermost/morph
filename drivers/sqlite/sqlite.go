@@ -349,11 +349,3 @@ func execTransaction(transaction *sql.Tx, query string) error {
 
 	return nil
 }
-
-func (driver *sqlite) DB() *sql.DB {
-	return driver.db
-}
-
-func (driver *sqlite) Name() string {
-	return driverName
-}
