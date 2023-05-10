@@ -228,6 +228,35 @@ func (suite *PostgresTestSuite) TestAppliedMigrations() {
 	suite.Assert().Len(appliedMigrations, 3)
 }
 
+func (suite *PostgresTestSuite) TestNonTransactionalMigrations() {
+	connectedDriver, teardown := suite.InitializeDriver(testConnURL)
+	defer teardown()
+
+	err := connectedDriver.Apply(&models.Migration{
+		Version: uint32(1),
+		Name:    "create table",
+		RawName: "test.sql",
+		Bytes: []byte(`CREATE TABLE IF NOT EXISTS testtable (
+				duedate bigint,
+				completed boolean,
+			    PRIMARY KEY (duedate)
+			);
+		`),
+		Direction: models.Up,
+	}, false)
+	suite.Require().NoError(err, "should not error while creating a table")
+	err = connectedDriver.Apply(&models.Migration{
+		Version: uint32(2),
+		Name:    "create index",
+		RawName: "test.sql",
+		Bytes: []byte(`-- morph:nontransactional
+			CREATE INDEX CONCURRENTLY test on testtable(duedate);
+		`),
+		Direction: models.Up,
+	}, false)
+	suite.Require().NoError(err, "show not error while running a non-transactional migration")
+}
+
 func (suite *PostgresTestSuite) TestApply() {
 	defaultConfig := getDefaultConfig()
 

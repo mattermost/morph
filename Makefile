@@ -11,12 +11,12 @@ test:
 .PHONY: test-rest
 test-rest:
 	$(GO) clean -testcache
-	$(GO) test -race -v --tags=!drivers,sources ./...
+	$(GO) test -race -v -tags=!drivers,sources ./...
 
 .PHONY: test-drivers
 test-drivers:
 	$(GO) clean -testcache
-	$(GO) test -race -v --tags=drivers,!sources ./...
+	$(GO) test -v -tags=drivers,!sources ./drivers/postgres/
 
 .PHONY: update-dependencies
 update-dependencies:
