@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -22,6 +23,11 @@ var (
 		"x-statement-timeout",
 	}
 )
+
+// The format is morph: followed by a comma separated list of values.
+// For now, we are taking the whole string in a single constant.
+// Later, if we need more values, we can split "morph:" to a separate constant.
+const nonTransactionalPrefix = "morph:nontransactional"
 
 type driverConfig struct {
 	drivers.Config
@@ -208,33 +214,61 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
 
-	transaction, err := pg.conn.BeginTx(ctx, nil)
-	if err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "error while opening a transaction to the database",
-			Command: "begin_transaction",
+	nonTransactional := strings.HasPrefix(query, "-- "+nonTransactionalPrefix)
+	// We wrap with a transaction only when there is no non-transactional prefix.
+	if !nonTransactional {
+		transaction, err := pg.conn.BeginTx(ctx, nil)
+		if err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "error while opening a transaction to the database",
+				Command: "begin_transaction",
+			}
 		}
-	}
 
-	if err = executeQuery(transaction, query); err != nil {
-		return err
-	}
-
-	if saveVersion {
-		if err = executeQuery(transaction, pg.addMigrationQuery(migration)); err != nil {
+		if err = executeQuery(ctx, transaction, query); err != nil {
 			return err
 		}
-	}
 
-	err = transaction.Commit()
-	if err != nil {
-		return &drivers.DatabaseError{
-			OrigErr: err,
-			Driver:  driverName,
-			Message: "error while committing a transaction to the database",
-			Command: "commit_transaction",
+		if saveVersion {
+			if err = executeQuery(ctx, transaction, pg.addMigrationQuery(migration)); err != nil {
+				return err
+			}
+		}
+
+		err = transaction.Commit()
+		if err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "error while committing a transaction to the database",
+				Command: "commit_transaction",
+			}
+		}
+	} else {
+		_, err := pg.conn.ExecContext(ctx, query)
+		if err != nil {
+			return &drivers.DatabaseError{
+				OrigErr: err,
+				Driver:  driverName,
+				Message: "failed to execute migration",
+				Command: "executing_query",
+				Query:   []byte(query),
+			}
+		}
+
+		if saveVersion {
+			_, err = pg.conn.ExecContext(ctx, pg.addMigrationQuery(migration))
+			if err != nil {
+				return &drivers.DatabaseError{
+					OrigErr: err,
+					Driver:  driverName,
+					Message: "failed to save version",
+					Command: "executing_query",
+					Query:   []byte(query),
+				}
+			}
 		}
 	}
 
@@ -300,8 +334,8 @@ func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
 	return fmt.Sprintf("INSERT INTO %s (version, name) VALUES (%d, '%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
 }
 
-func executeQuery(transaction *sql.Tx, query string) error {
-	if _, err := transaction.Exec(query); err != nil {
+func executeQuery(ctx context.Context, transaction *sql.Tx, query string) error {
+	if _, err := transaction.ExecContext(ctx, query); err != nil {
 		if txErr := transaction.Rollback(); txErr != nil {
 			err = errors.Wrap(errors.New(err.Error()+txErr.Error()), "failed to execute query in migration transaction")
 
