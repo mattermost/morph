@@ -457,6 +457,11 @@ func (m *Morph) getInterceptor(migration *models.Migration) Interceptor {
 	return f
 }
 
+// Applied returns the applied migrations.
+func (m *Morph) Applied() ([]*models.Migration, error) {
+	return m.driver.AppliedMigrations()
+}
+
 // SwapPlanDirection alters the plan direction to the opposite direction.
 func SwapPlanDirection(plan *models.Plan) {
 	// we need to ensure that the intended migrations for applying is in the
