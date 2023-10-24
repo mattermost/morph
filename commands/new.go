@@ -53,7 +53,7 @@ func NewScriptCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "script <file name>",
 		Short:   "Generates new migration files",
-		Example: "morph new script create_users --driver postgresql --dir db/migrations --timestamp",
+		Example: "morph new script create_users --driver postgres --dir db/migrations --timestamp",
 		Args:    cobra.ExactArgs(1),
 		Run:     generateScriptCmdF,
 	}
@@ -89,7 +89,7 @@ func NewPlanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "plan <file name>",
 		Short:   "Generates new plan for the migration files with revert steps",
-		Example: "morph new plan plan --driver postgresql --dsn postgres://localhost:5432/morph --path db/migrations",
+		Example: "morph new plan plan --driver postgres --dsn postgres://localhost:5432/morph --path db/migrations",
 		Args:    cobra.ExactArgs(1),
 		Run:     generatePlanCmdF,
 	}
