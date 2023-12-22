@@ -84,6 +84,8 @@ func (m *Mutex) tryLock(ctx context.Context) (bool, error) {
 		err2 := m.releaseLock(ctx, now)
 		if err2 == nil { // lock has been released due to expiration
 			return true, nil
+		} else {
+			m.logger.Printf("Failed to release lock: %v", err2)
 		}
 
 		return false, fmt.Errorf("failed to lock mutex: %w", err)
@@ -181,6 +183,7 @@ func (m *Mutex) Lock(ctx context.Context) error {
 
 		ok, err := m.tryLock(ctx)
 		if err != nil || !ok {
+			m.logger.Printf("Failed to acquire lock. Trying again: %v\n", err)
 			waitInterval = drivers.NextWaitInterval(waitInterval, err)
 			continue
 		}
