@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,12 +20,6 @@ import (
 
 	_ "github.com/mattermost/morph/sources/embedded"
 	_ "github.com/mattermost/morph/sources/file"
-)
-
-var (
-	migrationProgressStart    = "==  %s: migrating (%s)  ============================================="
-	migrationProgressFinished = "==  %s: migrated (%s)  ========================================"
-	migrationInterceptor      = "== %s: running pre-migration function =================================="
 )
 
 const maxProgressLogLength = 100
@@ -160,13 +153,13 @@ func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) err
 	direction := migration.Direction
 	f := m.getInterceptor(migration)
 	if f != nil {
-		m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationInterceptor, migrationName)))
+		m.config.Logger.Printf("%s: running pre-migration function", migrationName)
 		err := f()
 		if err != nil {
 			return err
 		}
 	}
-	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressStart, migrationName, direction)))
+	m.config.Logger.Printf("%s: migrating (%s)", migrationName, direction)
 	if !dryRun {
 		if err := m.driver.Apply(migration, saveVersion); err != nil {
 			return err
@@ -174,7 +167,7 @@ func (m *Morph) apply(migration *models.Migration, saveVersion, dryRun bool) err
 	}
 
 	elapsed := time.Since(start)
-	m.config.Logger.Println(formatProgress(fmt.Sprintf(migrationProgressFinished, migrationName, fmt.Sprintf("%.4fs", elapsed.Seconds()))))
+	m.config.Logger.Printf("%s: migrated (%.4fs)", migrationName, elapsed.Seconds())
 
 	return nil
 }
@@ -524,16 +517,4 @@ func findDownScripts(appliedMigrations []*models.Migration, sourceMigrations []*
 	}
 
 	return tmp, nil
-}
-
-func formatProgress(p string) string {
-	if len(p) < maxProgressLogLength {
-		return p + strings.Repeat("=", maxProgressLogLength-len(p))
-	}
-
-	if len(p) > maxProgressLogLength {
-		return p[:maxProgressLogLength]
-	}
-
-	return p
 }

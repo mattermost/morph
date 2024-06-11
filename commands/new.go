@@ -126,8 +126,7 @@ func newDriverCmdF(cmd *cobra.Command, args []string) error {
 }
 
 func generateNewDriver(driverName string) error {
-	morph.InfoLoggerLight.Printf("== CreateDriver: %q: generating driver files\n", driverName)
-	morph.InfoLoggerLight.Println("=================================================")
+	morph.InfoLoggerLight.Printf("CreateDriver: %q: generating driver files\n", driverName)
 
 	f := NewFile(driverName)
 
@@ -233,8 +232,7 @@ func generateNewDriver(driverName string) error {
 		return err
 	}
 
-	morph.InfoLoggerLight.Printf("== CreateDriver: %q: driver files generated\n", driverName)
-	morph.InfoLoggerLight.Println("=================================================")
+	morph.InfoLoggerLight.Printf("CreateDriver: %q: driver files generated\n", driverName)
 
 	morph.SuccessLogger.Printf("Now you can start implementing your new driver under %q.\nThanks in advance, for contributing.\n", driverDir)
 
