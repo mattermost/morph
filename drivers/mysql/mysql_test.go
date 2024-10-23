@@ -75,7 +75,7 @@ func (suite *MysqlTestSuite) AfterTest(_, _ string) {
 	}
 }
 
-func (suite *MysqlTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
+func (suite *MysqlTestSuite) InitializeDriver(connURL string) (*MySQL, func()) {
 	connectedDriver, err := Open(connURL)
 	suite.Require().NoError(err, "should not error when connecting to database from url")
 	suite.Require().NotNil(connectedDriver)
@@ -112,41 +112,36 @@ func (suite *MysqlTestSuite) TestOpen() {
 			},
 			closeDBonClose: true, // we have created DB from DSN
 		}
-		mysqlDriver := connectedDriver.(*mysql)
 
-		suite.Assert().EqualValues(cfg, mysqlDriver.config)
+		suite.Assert().EqualValues(cfg, connectedDriver.config)
 	})
 
 	suite.T().Run("when connURL is valid can override migrations table", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migrations-table=test")
 		defer teardown()
 
-		mysqlDriver := connectedDriver.(*mysql)
-		suite.Assert().Equal("test", mysqlDriver.config.MigrationsTable)
+		suite.Assert().Equal("test", connectedDriver.config.MigrationsTable)
 	})
 
 	suite.T().Run("when connURL is valid can override statement timeout", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-statement-timeout=10")
 		defer teardown()
 
-		mysqlDriver := connectedDriver.(*mysql)
-		suite.Assert().Equal(10, mysqlDriver.config.StatementTimeoutInSecs)
+		suite.Assert().Equal(10, connectedDriver.config.StatementTimeoutInSecs)
 	})
 
 	suite.T().Run("when connURL is valid can override max migration size", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "?x-migration-max-size=42")
 		defer teardown()
 
-		mysqlDriver := connectedDriver.(*mysql)
-		suite.Assert().Equal(42, mysqlDriver.config.MigrationMaxSize)
+		suite.Assert().Equal(42, connectedDriver.config.MigrationMaxSize)
 	})
 
 	suite.T().Run("when connURL is valid extracts database name", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 		defer teardown()
 
-		mysqlDriver := connectedDriver.(*mysql)
-		suite.Assert().Equal(databaseName, mysqlDriver.config.databaseName)
+		suite.Assert().Equal(databaseName, connectedDriver.config.databaseName)
 	})
 }
 
@@ -154,7 +149,7 @@ func (suite *MysqlTestSuite) TestCreateSchemaTableIfNotExists() {
 	defaultConfig := getDefaultConfig()
 
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver := &mysql{}
+		driver := &MySQL{}
 
 		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
@@ -372,12 +367,11 @@ func (suite *MysqlTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	driver, err := WithInstance(db)
-	mysqlDriver := driver.(*mysql)
+	mysqlDriver, err := WithInstance(db)
 	mysqlDriver.config.closeDBonClose = true
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
-		err = driver.Close()
+		err = mysqlDriver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
@@ -396,7 +390,7 @@ func (suite *MysqlTestSuite) TestLock() {
 
 	suite.T().Run("should create lock and unlock the mutex", func(t *testing.T) {
 		ctx := context.Background()
-		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+		mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -409,12 +403,11 @@ func (suite *MysqlTestSuite) TestLock() {
 	suite.T().Run("should release the expired lock", func(t *testing.T) {
 		ctx := context.Background()
 
-		ms := connectedDriver.(*mysql)
 		query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
-		_, err := ms.conn.ExecContext(ctx, query, "test-lock-key", 1)
+		_, err := connectedDriver.conn.ExecContext(ctx, query, "test-lock-key", 1)
 		suite.Require().NoError(err, "should not error while manually inserting the mutex")
 
-		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+		mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -430,10 +423,9 @@ func (suite *MysqlTestSuite) TestLock() {
 		now := time.Now()
 		timeout := time.After(2 * drivers.TTL) // should not wait to drop the lock for 30s
 
-		ms := connectedDriver.(*mysql)
 		query := fmt.Sprintf("INSERT INTO %s (Id, ExpireAt) VALUES (?, ?)", drivers.MutexTableName)
 		// set expiration 2 seconds later
-		_, err := ms.conn.ExecContext(ctx, query, "test-lock-key", now.Add(2*time.Second).Unix())
+		_, err := connectedDriver.conn.ExecContext(ctx, query, "test-lock-key", now.Add(2*time.Second).Unix())
 		suite.Require().NoError(err, "should not error while manually inserting the mutex")
 
 		done := make(chan struct{})
@@ -441,7 +433,7 @@ func (suite *MysqlTestSuite) TestLock() {
 			defer func() {
 				close(done)
 			}()
-			mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+			mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 			suite.Require().NoError(err, "should not error while creating the mutex")
 
 			err = mx.Lock(ctx)

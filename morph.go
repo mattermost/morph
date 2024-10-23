@@ -16,9 +16,6 @@ import (
 	"github.com/mattermost/morph/drivers"
 	"github.com/mattermost/morph/sources"
 
-	ms "github.com/mattermost/morph/drivers/mysql"
-	ps "github.com/mattermost/morph/drivers/postgres"
-
 	_ "github.com/mattermost/morph/sources/embedded"
 	_ "github.com/mattermost/morph/sources/file"
 )
@@ -118,16 +115,7 @@ func New(ctx context.Context, driver drivers.Driver, source sources.Source, opti
 	}
 
 	if impl, ok := driver.(drivers.Lockable); ok && engine.config.LockKey != "" {
-		var mx drivers.Locker
-		var err error
-		switch impl.DriverName() {
-		case "mysql":
-			mx, err = ms.NewMutex(engine.config.LockKey, driver, engine.config.Logger)
-		case "postgres":
-			mx, err = ps.NewMutex(engine.config.LockKey, driver, engine.config.Logger)
-		default:
-			err = errors.New("driver does not support locking")
-		}
+		mx, err := impl.NewMutex(engine.config.LockKey, engine.config.Logger)
 		if err != nil {
 			return nil, err
 		}

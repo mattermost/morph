@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: [1.19.x]
+        go-version: [1.22.x]
 
     services:
       postgres:
@@ -58,5 +58,4 @@ jobs:
         path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
     - name: Execute Tests
       run: |                                # we run driver and rest tests at the same time
-        go get -d -t ./...
         make test

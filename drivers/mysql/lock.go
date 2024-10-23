@@ -34,7 +34,7 @@ type Mutex struct {
 // NewMutex creates a mutex with the given key name.
 //
 // returns error if key is empty.
-func NewMutex(key string, driver drivers.Driver, logger drivers.Logger) (*Mutex, error) {
+func (driver *MySQL) NewMutex(key string, logger drivers.Logger) (*Mutex, error) {
 	key, err := drivers.MakeLockKey(key)
 	if err != nil {
 		return nil, err
@@ -43,12 +43,7 @@ func NewMutex(key string, driver drivers.Driver, logger drivers.Logger) (*Mutex,
 	ctx, cancel := context.WithTimeout(context.Background(), drivers.TTL)
 	defer cancel()
 
-	ms, ok := driver.(*mysql)
-	if !ok {
-		return nil, errors.New("incorrect implementation of the driver")
-	}
-
-	conn, err := ms.db.Conn(context.Background())
+	conn, err := driver.db.Conn(context.Background())
 	if err != nil {
 		return nil, err
 	}

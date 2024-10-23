@@ -1,6 +1,6 @@
 module github.com/mattermost/morph
 
-go 1.19
+go 1.22
 
 require (
 	github.com/dave/jennifer v1.4.1

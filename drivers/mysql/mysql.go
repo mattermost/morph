@@ -30,13 +30,13 @@ type driverConfig struct {
 	closeDBonClose bool
 }
 
-type mysql struct {
+type MySQL struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *driverConfig
 }
 
-func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
+func WithInstance(dbInstance *sql.DB) (*MySQL, error) {
 	driverConfig := getDefaultConfig()
 
 	conn, err := dbInstance.Conn(context.Background())
@@ -48,10 +48,10 @@ func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	return &mysql{config: driverConfig, conn: conn, db: dbInstance}, nil
+	return &MySQL{config: driverConfig, conn: conn, db: dbInstance}, nil
 }
 
-func Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (*MySQL, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -83,25 +83,21 @@ func Open(connURL string) (drivers.Driver, error) {
 
 	driverConfig.closeDBonClose = true
 
-	return &mysql{
+	return &MySQL{
 		conn:   conn,
 		db:     db,
 		config: driverConfig,
 	}, nil
 }
 
-func (driver *mysql) Ping() error {
+func (driver *MySQL) Ping() error {
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
 	return driver.conn.PingContext(ctx)
 }
 
-func (mysql) DriverName() string {
-	return driverName
-}
-
-func (driver *mysql) Close() error {
+func (driver *MySQL) Close() error {
 	if driver.conn != nil {
 		if err := driver.conn.Close(); err != nil {
 			return &drivers.DatabaseError{
@@ -131,7 +127,7 @@ func (driver *mysql) Close() error {
 	return nil
 }
 
-func (driver *mysql) createSchemaTableIfNotExists() (err error) {
+func (driver *MySQL) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -149,7 +145,7 @@ func (driver *mysql) createSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
-func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err error) {
+func (driver *MySQL) Apply(migration *models.Migration, saveVersion bool) (err error) {
 	query := migration.Query()
 	ctx, cancel := drivers.GetContext(driver.config.StatementTimeoutInSecs)
 	defer cancel()
@@ -206,7 +202,7 @@ func (driver *mysql) Apply(migration *models.Migration, saveVersion bool) (err e
 	return nil
 }
 
-func (driver *mysql) AppliedMigrations() (migrations []*models.Migration, err error) {
+func (driver *MySQL) AppliedMigrations() (migrations []*models.Migration, err error) {
 	if driver.conn == nil {
 		return nil, &drivers.AppError{
 			OrigErr: errors.New("driver has no connection established"),
@@ -301,14 +297,14 @@ func mergeConfigWithParams(params map[string]string, config *driverConfig) (*dri
 	return config, nil
 }
 
-func (driver *mysql) addMigrationQuery(migration *models.Migration) string {
+func (driver *MySQL) addMigrationQuery(migration *models.Migration) string {
 	if migration.Direction == models.Down {
 		return fmt.Sprintf("DELETE FROM %s WHERE (Version=%d AND NAME='%s')", driver.config.MigrationsTable, migration.Version, migration.Name)
 	}
 	return fmt.Sprintf("INSERT INTO %s (Version, Name) VALUES (%d, '%s')", driver.config.MigrationsTable, migration.Version, migration.Name)
 }
 
-func (driver *mysql) SetConfig(key string, value interface{}) error {
+func (driver *MySQL) SetConfig(key string, value interface{}) error {
 	if driver.config != nil {
 		switch key {
 		case "StatementTimeoutInSecs":
