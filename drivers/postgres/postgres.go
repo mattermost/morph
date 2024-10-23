@@ -36,13 +36,13 @@ type driverConfig struct {
 	closeDBonClose bool
 }
 
-type postgres struct {
+type Postgres struct {
 	conn   *sql.Conn
 	db     *sql.DB
 	config *driverConfig
 }
 
-func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
+func WithInstance(dbInstance *sql.DB) (*Postgres, error) {
 	conn, err := dbInstance.Conn(context.Background())
 	if err != nil {
 		return nil, &drivers.DatabaseError{Driver: driverName, Command: "grabbing_connection", OrigErr: err, Message: "failed to grab connection to the database"}
@@ -57,14 +57,14 @@ func WithInstance(dbInstance *sql.DB) (drivers.Driver, error) {
 		return nil, err
 	}
 
-	return &postgres{
+	return &Postgres{
 		conn:   conn,
 		db:     dbInstance,
 		config: driverConfig,
 	}, nil
 }
 
-func Open(connURL string) (drivers.Driver, error) {
+func Open(connURL string) (*Postgres, error) {
 	customParams, err := drivers.ExtractCustomParams(connURL, configParams)
 	if err != nil {
 		return nil, &drivers.AppError{Driver: driverName, OrigErr: err, Message: "failed to parse custom parameters from url"}
@@ -100,7 +100,7 @@ func Open(connURL string) (drivers.Driver, error) {
 
 	driverConfig.closeDBonClose = true
 
-	return &postgres{
+	return &Postgres{
 		db:     db,
 		config: driverConfig,
 		conn:   conn,
@@ -149,14 +149,14 @@ func mergeConfigWithParams(params map[string]string, config *driverConfig) (*dri
 	return config, nil
 }
 
-func (pg *postgres) Ping() error {
+func (pg *Postgres) Ping() error {
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
 
 	return pg.conn.PingContext(ctx)
 }
 
-func (pg *postgres) createSchemaTableIfNotExists() (err error) {
+func (pg *Postgres) createSchemaTableIfNotExists() (err error) {
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
 	defer cancel()
 
@@ -174,11 +174,7 @@ func (pg *postgres) createSchemaTableIfNotExists() (err error) {
 	return nil
 }
 
-func (postgres) DriverName() string {
-	return driverName
-}
-
-func (pg *postgres) Close() error {
+func (pg *Postgres) Close() error {
 	if pg.conn != nil {
 		if err := pg.conn.Close(); err != nil {
 			return &drivers.DatabaseError{
@@ -208,7 +204,7 @@ func (pg *postgres) Close() error {
 	return nil
 }
 
-func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
+func (pg *Postgres) Apply(migration *models.Migration, saveVersion bool) (err error) {
 	query := migration.Query()
 
 	ctx, cancel := drivers.GetContext(pg.config.StatementTimeoutInSecs)
@@ -275,7 +271,7 @@ func (pg *postgres) Apply(migration *models.Migration, saveVersion bool) (err er
 	return nil
 }
 
-func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err error) {
+func (pg *Postgres) AppliedMigrations() (migrations []*models.Migration, err error) {
 	if pg.conn == nil {
 		return nil, &drivers.AppError{
 			OrigErr: errors.New("driver has no connection established"),
@@ -327,7 +323,7 @@ func (pg *postgres) AppliedMigrations() (migrations []*models.Migration, err err
 	return appliedMigrations, nil
 }
 
-func (pg *postgres) addMigrationQuery(migration *models.Migration) string {
+func (pg *Postgres) addMigrationQuery(migration *models.Migration) string {
 	if migration.Direction == models.Down {
 		return fmt.Sprintf("DELETE FROM %s WHERE (Version=%d AND NAME='%s')", pg.config.MigrationsTable, migration.Version, migration.Name)
 	}
@@ -377,7 +373,7 @@ func currentDatabaseNameFromDB(conn *sql.Conn, config *driverConfig) (string, er
 	return databaseName, nil
 }
 
-func (pg *postgres) SetConfig(key string, value interface{}) error {
+func (pg *Postgres) SetConfig(key string, value interface{}) error {
 	if pg.config != nil {
 		switch key {
 		case "StatementTimeoutInSecs":
