@@ -73,7 +73,7 @@ type Locker interface {
 }
 
 type Lockable interface {
-	DriverName() string
+	NewMutex(key string, logger Logger) (Locker, error)
 }
 
 // IsLockable returns whether the given instance satisfies

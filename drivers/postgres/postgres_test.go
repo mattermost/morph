@@ -46,7 +46,7 @@ END $$;`)
 	suite.Require().NoError(err, "should not error when dropping the tables the test database")
 }
 
-func (suite *PostgresTestSuite) InitializeDriver(connURL string) (drivers.Driver, func()) {
+func (suite *PostgresTestSuite) InitializeDriver(connURL string) (*Postgres, func()) {
 	connectedDriver, err := Open(connURL)
 	suite.Require().NoError(err, "should not error when connecting to database from url")
 	suite.Require().NotNil(connectedDriver)
@@ -105,41 +105,36 @@ func (suite *PostgresTestSuite) TestOpen() {
 			closeDBonClose: true, // we have created DB from DSN
 		}
 
-		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().EqualValues(cfg, pgDriver.config)
+		suite.Assert().EqualValues(cfg, connectedDriver.config)
 	})
 
 	suite.T().Run("when connURL is valid can override migrations table", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-migrations-table=test")
 		defer teardown()
 
-		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().Equal("test", pgDriver.config.MigrationsTable)
+		suite.Assert().Equal("test", connectedDriver.config.MigrationsTable)
 	})
 
 	suite.T().Run("when connURL is valid can override statement timeout", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-statement-timeout=10")
 		defer teardown()
 
-		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().Equal(10, pgDriver.config.StatementTimeoutInSecs)
+		suite.Assert().Equal(10, connectedDriver.config.StatementTimeoutInSecs)
 	})
 
 	suite.T().Run("when connURL is valid can override max migration size", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL + "&x-migration-max-size=42")
 		defer teardown()
 
-		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().Equal(42, pgDriver.config.MigrationMaxSize)
+		suite.Assert().Equal(42, connectedDriver.config.MigrationMaxSize)
 	})
 
 	suite.T().Run("when connURL is valid extracts database and schema names", func(t *testing.T) {
 		connectedDriver, teardown := suite.InitializeDriver(testConnURL)
 		defer teardown()
 
-		pgDriver := connectedDriver.(*postgres)
-		suite.Assert().Equal(databaseName, pgDriver.config.databaseName)
-		suite.Assert().Equal("public", pgDriver.config.schemaName)
+		suite.Assert().Equal(databaseName, connectedDriver.config.databaseName)
+		suite.Assert().Equal("public", connectedDriver.config.schemaName)
 	})
 }
 
@@ -147,7 +142,7 @@ func (suite *PostgresTestSuite) TestCreateSchemaTableIfNotExists() {
 	defaultConfig := getDefaultConfig()
 
 	suite.T().Run("it errors when connection is missing", func(t *testing.T) {
-		driver := &postgres{}
+		driver := &Postgres{}
 
 		_, err := driver.AppliedMigrations()
 		suite.Assert().Error(err, "should error when database connection is missing")
@@ -404,12 +399,11 @@ func (suite *PostgresTestSuite) TestWithInstance() {
 	}()
 	suite.Assert().NoError(db.Ping(), "should not error when pinging the database")
 
-	driver, err := WithInstance(db)
-	psqlDriver := driver.(*postgres)
+	psqlDriver, err := WithInstance(db)
 	psqlDriver.config.closeDBonClose = true
 	suite.Assert().NoError(err, "should not error when creating a driver from db instance")
 	defer func() {
-		err = driver.Close()
+		err = psqlDriver.Close()
 		suite.Require().NoError(err, "should not error when closing the database connection")
 	}()
 
@@ -429,7 +423,8 @@ func (suite *PostgresTestSuite) TestLock() {
 
 	suite.T().Run("should create lock and unlock the mutex", func(t *testing.T) {
 		ctx := context.Background()
-		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+
+		mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -442,12 +437,11 @@ func (suite *PostgresTestSuite) TestLock() {
 	suite.T().Run("should release the expired lock", func(t *testing.T) {
 		ctx := context.Background()
 
-		pq := connectedDriver.(*postgres)
 		query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
-		_, err := pq.conn.ExecContext(ctx, query, "test-lock-key", 1)
+		_, err := connectedDriver.conn.ExecContext(ctx, query, "test-lock-key", 1)
 		suite.Require().NoError(err, "should not error while manually inserting the mutex")
 
-		mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+		mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 		suite.Require().NoError(err, "should not error while creating the mutex")
 
 		err = mx.Lock(ctx)
@@ -463,10 +457,9 @@ func (suite *PostgresTestSuite) TestLock() {
 		now := time.Now()
 		timeout := time.After(2 * drivers.TTL) // should not wait to drop the lock for 30s
 
-		pq := connectedDriver.(*postgres)
 		query := fmt.Sprintf("INSERT INTO %s (id, expireat) VALUES ($1, $2)", drivers.MutexTableName)
 		// set expiration 2 seconds later
-		_, err := pq.conn.ExecContext(ctx, query, "test-lock-key", now.Add(2*time.Second).Unix())
+		_, err := connectedDriver.conn.ExecContext(ctx, query, "test-lock-key", now.Add(2*time.Second).Unix())
 		suite.Require().NoError(err, "should not error while manually inserting the mutex")
 
 		done := make(chan struct{})
@@ -474,7 +467,7 @@ func (suite *PostgresTestSuite) TestLock() {
 			defer func() {
 				close(done)
 			}()
-			mx, err := NewMutex("test-lock-key", connectedDriver, logger)
+			mx, err := connectedDriver.NewMutex("test-lock-key", logger)
 			suite.Require().NoError(err, "should not error while creating the mutex")
 
 			err = mx.Lock(ctx)
