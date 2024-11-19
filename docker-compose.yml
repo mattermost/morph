@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   postgres:
-    image: postgres
+    image: postgres:12
     restart: always
     ports:
       - "6432:5432"
@@ -10,7 +10,7 @@ services:
       POSTGRES_DB: morph_test
       POSTGRES_USER: morph
   mysql:
-    image: "mysql:5.7"
+    image: "mysql:8"
     restart: always
     ports:
       - "3307:3306"

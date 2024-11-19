@@ -20,5 +20,6 @@ func main() {
 			morph.ErrorLogger.Fprintf(os.Stderr, "An Error Occurred:\n")
 		}
 		_, _ = morph.ErrorLoggerLight.Fprintf(os.Stderr, "--> %v\n", err)
+		os.Exit(1)
 	}
 }
