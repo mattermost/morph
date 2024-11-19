@@ -16,7 +16,7 @@ jobs:
 
     services:
       postgres:
-        image: "postgres:11"
+        image: "postgres:12"
         env:
           POSTGRES_PASSWORD: morph
           POSTGRES_DB: morph_test
@@ -31,7 +31,7 @@ jobs:
           - 6432:5432
 
       mysql:
-        image: "mysql:5.7"
+        image: "mysql:8"
         env:
           MYSQL_DATABASE: morph_test
           MYSQL_USER: morph

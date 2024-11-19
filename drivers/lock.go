@@ -63,7 +63,7 @@ func NextWaitInterval(lastWaitInterval time.Duration, err error) time.Duration {
 }
 
 type Locker interface {
-	// Lock locks m unless the context is canceled. If the mutex is already locked by any other
+	// Lock refreshes the lock unless the context is canceled. If the mutex is already locked by any other
 	// instance, including the current one, the calling goroutine blocks until the mutex can be locked,
 	// or the context is canceled.
 	//
@@ -74,11 +74,4 @@ type Locker interface {
 
 type Lockable interface {
 	NewMutex(key string, logger Logger) (Locker, error)
-}
-
-// IsLockable returns whether the given instance satisfies
-// drivers.Lockable or not.
-func IsLockable(x interface{}) bool {
-	_, ok := x.(Lockable)
-	return ok
 }
