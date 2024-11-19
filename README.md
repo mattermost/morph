@@ -4,7 +4,7 @@
 
 # Morph
 
-[![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/mattermost/morph/CI)](https://github.com/mattermost/morph/actions/workflows/ci.yml?query=branch%3Amaster)
+[![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/mattermost/morph/ci.yml?branch=master)](https://github.com/mattermost/morph/actions/workflows/ci.yml?query=branch%3Amaster)
 [![GoDoc](https://pkg.go.dev/badge/github.com/mattermost/migrate)](https://pkg.go.dev/github.com/mattermost/morph)
 
 As an application evolves, the data flowing inside inevitably evolves along with it. If you have an application that persists the data in a relational database, the way you store the data will probably change over time. Morph is a database migration tool that helps you to apply your migrations. It is written with Go so you can use it from your Go application as well. Read our [blog post](https://mattermost.com/blog/morph-database-schema-migrations-made-easy/) to learn more about the motivation behind this project.
